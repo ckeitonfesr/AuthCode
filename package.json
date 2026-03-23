@@ -1,7 +1,8 @@
 {
   "name": "api-24hrs",
   "version": "1.0.0",
-  "description": "Serverless email code authentication",
+  "description": "Serverless email code authentication with Resend + Supabase",
+  "private": true,
   "dependencies": {
     "@supabase/supabase-js": "^2.49.0",
     "resend": "^4.0.0"
