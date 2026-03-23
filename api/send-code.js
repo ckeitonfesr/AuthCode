@@ -74,18 +74,36 @@ module.exports = async function handler(req, res) {
   // ── 4. Envia o email via Resend ──────────────────────────────────────────────
   try {
     await resend.emails.send({
-      from: '24horas-Central <onboarding@resend.dev>',
+      from: '24h Conveniência Central <onboarding@resend.dev>',
       to: normalizedEmail,
-      subject: 'Seu código de verificação',
+      subject: 'Seu código de acesso',
       html: `
-        <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;">
-          <img src="https://tse2.mm.bing.net/th/id/OIP.vbYCNbU7UNVQxmvkZe9_EQHaB-?rs=1&pid=ImgDetMain&o=7&rm=3.png" alt="Logo" width="120" style="margin-bottom:24px;" />
-          <h2 style="margin:0 0 8px;">Verificação de email</h2>
-          <p>Seu código de verificação é:</p>
-          <div style="font-size:36px;font-weight:bold;letter-spacing:10px;padding:16px 0;">${code}</div>
-          <p style="color:#666;">Este código expira em <strong>1 minuto</strong>.</p>
-          <p style="color:#999;font-size:12px;">Se você não solicitou este código, ignore este email.</p>
-        </div>
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#111111;font-family:'Segoe UI',Arial,sans-serif;">
+          <tr><td align="center" style="padding:40px 16px;">
+            <table width="520" cellpadding="0" cellspacing="0" style="background:#0a0a0a;border-radius:12px;overflow:hidden;border:1px solid #222;">
+              <tr>
+                <td style="background:#000000;padding:28px 40px;text-align:center;border-bottom:3px solid #f5c400;">
+                  <div style="font-size:32px;font-weight:900;color:#f5c400;letter-spacing:-1px;line-height:1;">24h</div>
+                  <div style="font-size:11px;font-weight:700;color:#ff6a00;letter-spacing:4px;text-transform:uppercase;margin-top:2px;">Conveniência Central</div>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:36px 40px 28px;">
+                  <h2 style="margin:0 0 10px;font-size:20px;font-weight:700;color:#ffffff;">Seu código de acesso</h2>
+                  <p style="margin:0 0 24px;font-size:15px;color:#9ca3af;line-height:1.6;">Use o código abaixo para acessar sua conta:</p>
+                  <div style="background:#111111;border:1px solid #2a2a2a;border-radius:10px;padding:28px 20px;text-align:center;margin-bottom:24px;">
+                    <div style="font-size:11px;font-weight:700;color:#f5c400;letter-spacing:3px;text-transform:uppercase;margin-bottom:12px;">Código de verificação</div>
+                    <div style="font-size:42px;font-weight:900;letter-spacing:14px;color:#ffffff;">${code}</div>
+                  </div>
+                  <p style="margin:0;font-size:13px;color:#6b7280;">Se você não solicitou este código, ignore este e-mail. Nenhuma ação será tomada em sua conta.</p>
+                </td>
+              </tr>
+              <tr>
+                <td style="background:linear-gradient(90deg,#f5c400,#ff6a00);padding:4px 0;"></td>
+              </tr>
+            </table>
+          </td></tr>
+        </table>
       `,
     });
   } catch (err) {
