@@ -74,7 +74,7 @@ module.exports = async function handler(req, res) {
   // ── 4. Envia o email via Resend ──────────────────────────────────────────────
   try {
     await resend.emails.send({
-      from: '24horas-Central <24hrs-central.site>',
+      from: '24horas-Central <onboarding@resend.dev>',
       to: normalizedEmail,
       subject: 'Seu código de verificação',
       html: `
