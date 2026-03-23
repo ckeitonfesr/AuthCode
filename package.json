@@ -1,0 +1,9 @@
+{
+  "name": "api-24hrs",
+  "version": "1.0.0",
+  "description": "Serverless email code authentication",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.0",
+    "resend": "^4.0.0"
+  }
+}
