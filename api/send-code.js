@@ -78,11 +78,14 @@ module.exports = async function handler(req, res) {
       to: normalizedEmail,
       subject: 'Seu código de verificação',
       html: `
-        <p>Olá!</p>
-        <p>Seu código de verificação é:</p>
-        <h2 style="letter-spacing:6px;">${code}</h2>
-        <p>Este código expira em <strong>1 minuto</strong>.</p>
-        <p>Se você não solicitou este código, ignore este email.</p>
+        <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;">
+          <img src="https://tse2.mm.bing.net/th/id/OIP.vbYCNbU7UNVQxmvkZe9_EQHaB-?rs=1&pid=ImgDetMain&o=7&rm=3.png" alt="Logo" width="120" style="margin-bottom:24px;" />
+          <h2 style="margin:0 0 8px;">Verificação de email</h2>
+          <p>Seu código de verificação é:</p>
+          <div style="font-size:36px;font-weight:bold;letter-spacing:10px;padding:16px 0;">${code}</div>
+          <p style="color:#666;">Este código expira em <strong>1 minuto</strong>.</p>
+          <p style="color:#999;font-size:12px;">Se você não solicitou este código, ignore este email.</p>
+        </div>
       `,
     });
   } catch (err) {
