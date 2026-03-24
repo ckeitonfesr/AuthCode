@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "4637f1d8-4f17-4f5f-97c9-d49e2119018c"
+      }
+    },
+    "android": {
+      "package": "com.cleitontwz.api24hrs"
+    }
+  }
+}

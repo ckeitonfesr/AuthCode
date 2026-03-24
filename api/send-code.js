@@ -74,7 +74,7 @@ module.exports = async function handler(req, res) {
 
   try {
     await resend.emails.send({
-      from: '24h Central <onboarding@resend.dev>',
+      from: '24h Central <noreply@24hrs-central.site>',
       to: normalizedEmail,
       subject: 'Seu código de acesso',
       html: `
