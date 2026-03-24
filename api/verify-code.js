@@ -52,5 +52,19 @@ module.exports = async function handler(req, res) {
 
   await supabase.from('auth_codes').delete().eq('email', normalizedEmail);
 
-  return res.status(200).json({ success: true, message: 'Código verificado com sucesso.' });
+  // Gera token Supabase para criar sessão real no cliente
+  const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+    type: 'signup',
+    email: normalizedEmail,
+  });
+
+  if (linkError) {
+    console.error('[verify-code] Erro ao gerar link:', linkError);
+    return res.status(500).json({ error: 'Erro ao criar sessão. Tente novamente.' });
+  }
+
+  return res.status(200).json({
+    success: true,
+    token_hash: linkData.properties.hashed_token,
+  });
 }
