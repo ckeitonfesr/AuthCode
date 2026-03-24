@@ -54,13 +54,13 @@ module.exports = async function handler(req, res) {
 
   // Gera token Supabase para criar sessão real no cliente
   const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
-    type: 'signup',
+    type: 'magiclink',
     email: normalizedEmail,
   });
 
   if (linkError) {
-    console.error('[verify-code] Erro ao gerar link:', linkError);
-    return res.status(500).json({ error: 'Erro ao criar sessão. Tente novamente.' });
+    console.error('[verify-code] Erro ao gerar link:', JSON.stringify(linkError));
+    return res.status(500).json({ error: `generateLink falhou: ${linkError.message}` });
   }
 
   return res.status(200).json({
