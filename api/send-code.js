@@ -1,6 +1,14 @@
 const { Resend } = require('resend');
+const { createClient } = require('@supabase/supabase-js');
 const supabase = require('./_supabase');
 const { validateToken } = require('./_token');
+
+// Cliente separado para consultar schema auth (service role necessário)
+const supabaseAuth = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY,
+  { db: { schema: 'auth' } }
+);
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -32,6 +40,17 @@ module.exports = async function handler(req, res) {
   }
 
   const normalizedEmail = email.trim().toLowerCase();
+
+  // Bloqueia email ja cadastrado no Supabase Auth
+  const { data: authUser } = await supabaseAuth
+    .from('users')
+    .select('id')
+    .eq('email', normalizedEmail)
+    .maybeSingle();
+
+  if (authUser) {
+    return res.status(409).json({ error: 'Email ja cadastrado. Faca login.' });
+  }
 
   const { data: existing, error: fetchError } = await supabase
     .from('auth_codes')
