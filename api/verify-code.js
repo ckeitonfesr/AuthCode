@@ -52,19 +52,5 @@ module.exports = async function handler(req, res) {
 
   await supabase.from('auth_codes').delete().eq('email', normalizedEmail);
 
-  // Gera token Supabase para criar sessão real no cliente
-  const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
-    type: 'magiclink',
-    email: normalizedEmail,
-  });
-
-  if (linkError) {
-    console.error('[verify-code] Erro ao gerar link:', JSON.stringify(linkError));
-    return res.status(500).json({ error: `generateLink falhou: ${linkError.message}` });
-  }
-
-  return res.status(200).json({
-    success: true,
-    token_hash: linkData.properties.hashed_token,
-  });
+  return res.status(200).json({ success: true });
 }
