@@ -19,6 +19,8 @@ module.exports = async function handler(req, res) {
 
   const normalizedEmail = email.trim().toLowerCase();
 
+  let u;
+
   const { data: userData, error: createError } = await supabase.auth.admin.createUser({
     email: normalizedEmail,
     password,
@@ -26,14 +28,24 @@ module.exports = async function handler(req, res) {
   });
 
   if (createError) {
-    console.error('[complete-registration]', createError.message);
-    if (createError.message?.toLowerCase().includes('already registered')) {
-      return res.status(409).json({ error: 'Email ja cadastrado. Faca login.' });
+    if (!createError.message?.toLowerCase().includes('already registered')) {
+      console.error('[complete-registration]', createError.message);
+      return res.status(500).json({ error: createError.message });
     }
-    return res.status(500).json({ error: createError.message });
-  }
+    // Usuário já existe — busca e atualiza a senha
+    const { data: list } = await supabase.auth.admin.listUsers();
+    const existing = list?.users?.find(x => x.email === normalizedEmail);
+    if (!existing) return res.status(500).json({ error: 'Erro ao localizar conta.' });
 
-  const u = userData.user;
+    const { error: updateError } = await supabase.auth.admin.updateUserById(existing.id, {
+      password,
+      email_confirm: true,
+    });
+    if (updateError) return res.status(500).json({ error: updateError.message });
+    u = existing;
+  } else {
+    u = userData.user;
+  }
   const firstName = fullName.trim().split(' ')[0];
 
   await supabase.from('profiles').upsert({
