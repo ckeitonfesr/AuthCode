@@ -12,7 +12,7 @@ const supabaseAuth = createClient(
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const CODE_TTL_SEC = 600;       // 10 minutos
+const CODE_TTL_SEC = 60;        // 1 minuto
 const THROTTLE_MS  = 60 * 1000; // reenvio só após 1 minuto
 
 function generateCode() {
