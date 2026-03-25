@@ -1,6 +1,20 @@
 const supabase = require('./_supabase');
 const { validateToken } = require('./_token');
 
+function isValidCpf(digits) {
+  if (/^(\d)\1{10}$/.test(digits)) return false; // ex: 111.111.111-11
+  let sum = 0;
+  for (let i = 0; i < 9; i++) sum += parseInt(digits[i]) * (10 - i);
+  let rem = (sum * 10) % 11;
+  if (rem === 10 || rem === 11) rem = 0;
+  if (rem !== parseInt(digits[9])) return false;
+  sum = 0;
+  for (let i = 0; i < 10; i++) sum += parseInt(digits[i]) * (11 - i);
+  rem = (sum * 10) % 11;
+  if (rem === 10 || rem === 11) rem = 0;
+  return rem === parseInt(digits[10]);
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
@@ -45,19 +59,32 @@ module.exports = async function handler(req, res) {
       return res.status(409).json({ error: 'Email ja cadastrado. Faca login.' });
     }
     console.error('[complete-registration]', createError.message);
-    return res.status(500).json({ error: createError.message });
+    return res.status(500).json({ error: 'Erro interno. Tente novamente.' });
   }
 
   const u = userData.user;
   const firstName = fullName.trim().split(' ')[0];
 
+  // Gera username único com sufixo aleatório para evitar colisões
+  const randomSuffix = Math.random().toString(36).slice(2, 6);
+  const username = `${firstName.toLowerCase()}_${randomSuffix}`;
+
+  // Valida CPF (dígitos verificadores) se fornecido
+  let validatedCpf = null;
+  if (cpf) {
+    const digits = cpf.replace(/\D/g, '');
+    if (digits.length === 11 && isValidCpf(digits)) {
+      validatedCpf = digits;
+    }
+  }
+
   await supabase.from('profiles').upsert({
     id: u.id,
     name: firstName,
     full_name: fullName,
-    username: firstName.toLowerCase(),
+    username,
     phone,
-    cpf: cpf || null,
+    cpf: validatedCpf,
   });
 
   return res.status(200).json({ success: true });

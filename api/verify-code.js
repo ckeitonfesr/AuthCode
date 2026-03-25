@@ -1,10 +1,20 @@
 const supabase = require('./_supabase');
+const { validateToken } = require('./_token');
 
 const MAX_ATTEMPTS = 5;
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const token    = req.headers['x-request-token'];
+  const deviceId = req.headers['x-device-id'];
+  const ip       = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+
+  const isValid = await validateToken(token, deviceId, ip);
+  if (!isValid) {
+    return res.status(401).json({ error: 'Token invalido ou expirado.' });
   }
 
   const { email, code } = req.body ?? {};

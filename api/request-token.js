@@ -25,10 +25,11 @@ module.exports = async function handler(req, res) {
     return res.status(401).json({ error: 'Request expired' });
   }
 
-  // Valida assinatura HMAC-SHA256 — prova que veio do app
+  // Valida assinatura SHA256 — prova que veio do app
+  // Formato: SHA256(deviceId:timestamp:APP_SECRET_KEY) — alinhado com o cliente
   const expectedSig = crypto
-    .createHmac('sha256', process.env.APP_SECRET_KEY)
-    .update(`${deviceId}:${timestamp}`)
+    .createHash('sha256')
+    .update(`${deviceId}:${timestamp}:${process.env.APP_SECRET_KEY}`)
     .digest('hex');
 
   if (!signature || signature !== expectedSig) {
