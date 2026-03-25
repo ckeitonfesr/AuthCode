@@ -31,6 +31,19 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'Dados incompletos.' });
   }
 
+  // Valida senha no backend (não confiar só no cliente)
+  if (
+    typeof password !== 'string' ||
+    password.length < 8 ||
+    password.length > 12 ||
+    !/[A-Z]/.test(password) ||
+    !/[a-z]/.test(password) ||
+    !/[0-9]/.test(password) ||
+    /[^a-zA-Z0-9]/.test(password)
+  ) {
+    return res.status(400).json({ error: 'Senha invalida.' });
+  }
+
   const normalizedEmail = email.trim().toLowerCase();
 
   // CRÍTICO 2 — Verifica se OTP foi confirmado antes de criar conta

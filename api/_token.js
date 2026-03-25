@@ -40,7 +40,15 @@ async function validateToken(token, deviceId, ip) {
   // MÉDIO 8 — Valida IP do token
   if (data.ip && data.ip !== ip) return false;
 
-  await supabase.from('api_tokens').update({ used: true }).eq('token', token);
+  // Update condicional — só marca used=true se ainda estava false (evita uso paralelo)
+  const { count } = await supabase
+    .from('api_tokens')
+    .update({ used: true })
+    .eq('token', token)
+    .eq('used', false)
+    .select('token', { count: 'exact', head: true });
+
+  if (!count) return false; // outra request já usou este token
   return true;
 }
 

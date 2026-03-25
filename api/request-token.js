@@ -21,7 +21,7 @@ module.exports = async function handler(req, res) {
   // Valida timestamp — rejeita requests com mais de 30 segundos
   const now = Date.now();
   const reqTime = parseInt(timestamp || '0', 10);
-  if (Math.abs(now - reqTime) > 30000) {
+  if (Math.abs(now - reqTime) > 10000) {
     return res.status(401).json({ error: 'Request expired' });
   }
 

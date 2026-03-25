@@ -16,7 +16,8 @@ const CODE_TTL_SEC = 60;        // 1 minuto
 const THROTTLE_MS  = 60 * 1000; // reenvio só após 1 minuto
 
 function generateCode() {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  const { randomInt } = require('crypto');
+  return String(randomInt(100000, 1000000));
 }
 
 module.exports = async function handler(req, res) {
