@@ -25,13 +25,13 @@ module.exports = async function handler(req, res) {
     return res.status(401).json({ error: 'Request expired' });
   }
 
-  // Valida assinatura SHA256 — prova que veio do app
-  const expected = crypto
-    .createHash('sha256')
-    .update(`${deviceId}:${timestamp}:${process.env.APP_SECRET_KEY}`)
+  // Valida assinatura HMAC-SHA256 — prova que veio do app
+  const expectedSig = crypto
+    .createHmac('sha256', process.env.APP_SECRET_KEY)
+    .update(`${deviceId}:${timestamp}`)
     .digest('hex');
 
-  if (!signature || signature !== expected) {
+  if (!signature || signature !== expectedSig) {
     return res.status(401).json({ error: 'Invalid signature' });
   }
 

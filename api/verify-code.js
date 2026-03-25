@@ -39,10 +39,18 @@ module.exports = async function handler(req, res) {
   }
 
   if (code !== entry.code) {
-    await supabase
+    // ALTO 5 — Update atômico com condição para evitar race condition
+    const { data: updated } = await supabase
       .from('auth_codes')
       .update({ attempts: entry.attempts + 1 })
-      .eq('email', normalizedEmail);
+      .eq('email', normalizedEmail)
+      .eq('attempts', entry.attempts) // garante atomicidade
+      .select()
+      .single();
+
+    if (!updated) {
+      return res.status(429).json({ error: 'Tente novamente.' });
+    }
 
     const remaining = MAX_ATTEMPTS - (entry.attempts + 1);
     return res.status(401).json({
@@ -51,6 +59,13 @@ module.exports = async function handler(req, res) {
   }
 
   await supabase.from('auth_codes').delete().eq('email', normalizedEmail);
+
+  // CRÍTICO 2 — Salva confirmação de OTP válido (expira em 10 minutos)
+  await supabase.from('otp_verified').upsert({
+    email: normalizedEmail,
+    verified_at: new Date().toISOString(),
+    expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+  });
 
   return res.status(200).json({ success: true });
 }

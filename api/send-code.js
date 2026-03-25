@@ -48,8 +48,9 @@ module.exports = async function handler(req, res) {
     .eq('email', normalizedEmail)
     .maybeSingle();
 
+  // MÉDIO 6 — Não revela se email existe (anti-enumeração)
   if (authUser) {
-    return res.status(409).json({ error: 'Email ja cadastrado. Faca login.' });
+    return res.status(200).json({ success: true, message: 'Codigo enviado para o email.' });
   }
 
   const { data: existing, error: fetchError } = await supabase

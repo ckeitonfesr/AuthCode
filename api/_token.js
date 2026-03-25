@@ -7,7 +7,14 @@ async function generateToken(deviceId, ip) {
   const token = crypto.randomBytes(32).toString('hex');
   const expiresAt = new Date(Date.now() + TOKEN_TTL_SEC * 1000).toISOString();
 
-  await supabase.from('api_tokens').upsert({
+  // BAIXO 10 — Invalida tokens anteriores do mesmo device
+  await supabase
+    .from('api_tokens')
+    .update({ used: true })
+    .eq('device_id', deviceId)
+    .eq('used', false);
+
+  await supabase.from('api_tokens').insert({
     token,
     device_id: deviceId,
     ip,
@@ -30,6 +37,8 @@ async function validateToken(token, deviceId, ip) {
   if (error || !data) return false;
   if (new Date(data.expires_at) < new Date()) return false;
   if (data.device_id !== deviceId) return false;
+  // MÉDIO 8 — Valida IP do token
+  if (data.ip && data.ip !== ip) return false;
 
   await supabase.from('api_tokens').update({ used: true }).eq('token', token);
   return true;

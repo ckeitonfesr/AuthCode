@@ -19,7 +19,19 @@ module.exports = async function handler(req, res) {
 
   const normalizedEmail = email.trim().toLowerCase();
 
-  let u;
+  // CRÍTICO 2 — Verifica se OTP foi confirmado antes de criar conta
+  const { data: verified } = await supabase
+    .from('otp_verified')
+    .select('expires_at')
+    .eq('email', normalizedEmail)
+    .single();
+
+  if (!verified || new Date(verified.expires_at) < new Date()) {
+    return res.status(403).json({ error: 'OTP nao verificado.' });
+  }
+
+  // Remove o registro OTP após usar (uso único)
+  await supabase.from('otp_verified').delete().eq('email', normalizedEmail);
 
   const { data: userData, error: createError } = await supabase.auth.admin.createUser({
     email: normalizedEmail,
@@ -28,24 +40,15 @@ module.exports = async function handler(req, res) {
   });
 
   if (createError) {
-    if (!createError.message?.toLowerCase().includes('already registered')) {
-      console.error('[complete-registration]', createError.message);
-      return res.status(500).json({ error: createError.message });
+    // CRÍTICO 1 — Se email já existe retorna 409, nunca atualiza senha
+    if (createError.message?.toLowerCase().includes('already registered')) {
+      return res.status(409).json({ error: 'Email ja cadastrado. Faca login.' });
     }
-    // Usuário já existe — busca e atualiza a senha
-    const { data: list } = await supabase.auth.admin.listUsers();
-    const existing = list?.users?.find(x => x.email === normalizedEmail);
-    if (!existing) return res.status(500).json({ error: 'Erro ao localizar conta.' });
-
-    const { error: updateError } = await supabase.auth.admin.updateUserById(existing.id, {
-      password,
-      email_confirm: true,
-    });
-    if (updateError) return res.status(500).json({ error: updateError.message });
-    u = existing;
-  } else {
-    u = userData.user;
+    console.error('[complete-registration]', createError.message);
+    return res.status(500).json({ error: createError.message });
   }
+
+  const u = userData.user;
   const firstName = fullName.trim().split(' ')[0];
 
   await supabase.from('profiles').upsert({
