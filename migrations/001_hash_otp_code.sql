@@ -1,6 +1,18 @@
 ALTER TABLE auth_codes ADD COLUMN IF NOT EXISTS code_hash TEXT;
 
-UPDATE auth_codes SET code_hash = encode(sha256(code::bytea), 'hex') WHERE code_hash IS NULL;
+-- Só migra dados se a coluna 'code' ainda existir (evita erro em re-execução)
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'auth_codes' AND column_name = 'code'
+  ) THEN
+    UPDATE auth_codes
+    SET code_hash = encode(sha256(code::bytea), 'hex')
+    WHERE code_hash IS NULL;
+  END IF;
+END;
+$$;
 
 ALTER TABLE auth_codes ALTER COLUMN code_hash SET NOT NULL;
 

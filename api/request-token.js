@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { generateToken }      = require('./_token');
 const { checkIpRateLimit, extractIp } = require('./_rate-limit');
+const { verifyIntegrityToken } = require('./_integrity-verify');
 
 const TOKEN_RATE_LIMIT = 10; // max 10 tokens por IP por minuto
 
@@ -45,6 +46,22 @@ module.exports = async function handler(req, res) {
 
   if (!signature || signature !== expectedSig) {
     return res.status(401).json({ error: 'Invalid signature' });
+  }
+
+  // Verifica integridade do app (Play Integrity no Android, App Attest no iOS)
+  const integrityToken = req.headers['x-integrity-token'];
+  const integrityNonce = req.headers['x-integrity-nonce'];
+  const platform       = req.headers['x-app-platform'] || 'android';
+
+  if (integrityToken && integrityNonce) {
+    const { valid, reason } = await verifyIntegrityToken(integrityToken, integrityNonce, platform);
+    if (!valid) {
+      console.warn(`[request-token] Integridade reprovada (${platform}): ${reason}`);
+      return res.status(403).json({ error: 'Verificação de integridade falhou.' });
+    }
+  } else if (process.env.NODE_ENV === 'production') {
+    // Em produção, exige o token de integridade
+    return res.status(403).json({ error: 'Token de integridade obrigatório.' });
   }
 
   const token = await generateToken(deviceId, ip);
