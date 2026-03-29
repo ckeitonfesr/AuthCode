@@ -53,15 +53,18 @@ module.exports = async function handler(req, res) {
   const integrityNonce = req.headers['x-integrity-nonce'];
   const platform       = req.headers['x-app-platform'] || 'android';
 
-  if (integrityToken && integrityNonce) {
-    const { valid, reason } = await verifyIntegrityToken(integrityToken, integrityNonce, platform);
-    if (!valid) {
-      console.warn(`[request-token] Integridade reprovada (${platform}): ${reason}`);
-      return res.status(403).json({ error: 'Verificação de integridade falhou.' });
+  const integrityDisabled = process.env.INTEGRITY_DISABLED === 'true';
+
+  if (!integrityDisabled) {
+    if (integrityToken && integrityNonce) {
+      const { valid, reason } = await verifyIntegrityToken(integrityToken, integrityNonce, platform);
+      if (!valid) {
+        console.warn(`[request-token] Integridade reprovada (${platform}): ${reason}`);
+        return res.status(403).json({ error: 'Verificação de integridade falhou.' });
+      }
+    } else if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({ error: 'Token de integridade obrigatório.' });
     }
-  } else if (process.env.NODE_ENV === 'production') {
-    // Em produção, exige o token de integridade
-    return res.status(403).json({ error: 'Token de integridade obrigatório.' });
   }
 
   const token = await generateToken(deviceId, ip);
