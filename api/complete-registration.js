@@ -1,5 +1,7 @@
-const supabase = require('./_supabase');
+const crypto    = require('crypto');
+const supabase  = require('./_supabase');
 const { validateToken } = require('./_token');
+const { checkIpRateLimit, extractIp } = require('./_rate-limit');
 
 function isValidCpf(digits) {
   if (/^(\d)\1{10}$/.test(digits)) return false; // ex: 111.111.111-11
@@ -18,11 +20,16 @@ function isValidCpf(digits) {
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
+  const ip = extractIp(req);
+  const rl = checkIpRateLimit(ip, 5); // max 5 cadastros por IP por minuto
+  if (!rl.allowed) {
+    return res.status(429).json({ error: `Muitas requisições. Tente novamente em ${rl.retryAfterSec}s.` });
+  }
+
   const token    = req.headers['x-request-token'];
   const deviceId = req.headers['x-device-id'];
-  const ip       = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
-  const isValid = await validateToken(token, deviceId, ip);
+  const isValid = await validateToken(token, deviceId, req);
   if (!isValid) return res.status(401).json({ error: 'Token invalido ou expirado.' });
 
   const { email, password, phone, fullName, cpf } = req.body ?? {};
@@ -32,14 +39,15 @@ module.exports = async function handler(req, res) {
   }
 
   // Valida senha no backend (não confiar só no cliente)
+  // Mínimo 10 chars, máximo 128, deve ter maiúscula + minúscula + número
+  // Caracteres especiais são permitidos para maximizar entropia
   if (
     typeof password !== 'string' ||
-    password.length < 8 ||
-    password.length > 12 ||
+    password.length < 10 ||
+    password.length > 128 ||
     !/[A-Z]/.test(password) ||
     !/[a-z]/.test(password) ||
-    !/[0-9]/.test(password) ||
-    /[^a-zA-Z0-9]/.test(password)
+    !/[0-9]/.test(password)
   ) {
     return res.status(400).json({ error: 'Senha invalida.' });
   }
@@ -78,8 +86,8 @@ module.exports = async function handler(req, res) {
   const u = userData.user;
   const firstName = fullName.trim().split(' ')[0];
 
-  // Gera username único com sufixo aleatório para evitar colisões
-  const randomSuffix = Math.random().toString(36).slice(2, 6);
+  // Gera username único com sufixo criptograficamente aleatório (6 hex chars = 16M+ combinações)
+  const randomSuffix = crypto.randomBytes(3).toString('hex');
   const username = `${firstName.toLowerCase()}_${randomSuffix}`;
 
   // Valida CPF (dígitos verificadores) se fornecido

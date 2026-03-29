@@ -1,25 +1,41 @@
+const crypto  = require('crypto');
 const supabase = require('./_supabase');
 const { validateToken } = require('./_token');
+const { checkIpRateLimit, extractIp } = require('./_rate-limit');
 
-const MAX_ATTEMPTS = 5;
+const MAX_ATTEMPTS   = 5;
+const VERIFY_RATE    = 10; // max 10 tentativas por IP por minuto
+
+const EMAIL_RE = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+
+function hashCode(code) {
+  return crypto.createHash('sha256').update(code).digest('hex');
+}
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  const ip = extractIp(req);
+  const rl = checkIpRateLimit(ip, VERIFY_RATE);
+  if (!rl.allowed) {
+    return res.status(429).json({
+      error: `Muitas requisições. Tente novamente em ${rl.retryAfterSec}s.`,
+    });
+  }
+
   const token    = req.headers['x-request-token'];
   const deviceId = req.headers['x-device-id'];
-  const ip       = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
-  const isValid = await validateToken(token, deviceId, ip);
+  const isValid = await validateToken(token, deviceId, req);
   if (!isValid) {
     return res.status(401).json({ error: 'Token invalido ou expirado.' });
   }
 
   const { email, code } = req.body ?? {};
 
-  if (!email || typeof email !== 'string' || !email.includes('@')) {
+  if (!email || typeof email !== 'string' || !EMAIL_RE.test(email) || email.length > 254) {
     return res.status(400).json({ error: 'Email inválido.' });
   }
   if (!code || typeof code !== 'string' || !/^\d{6}$/.test(code)) {
@@ -30,7 +46,7 @@ module.exports = async function handler(req, res) {
 
   const { data: entry, error: fetchError } = await supabase
     .from('auth_codes')
-    .select('code, expires_at, attempts')
+    .select('code_hash, expires_at, attempts')
     .eq('email', normalizedEmail)
     .single();
 
@@ -48,13 +64,15 @@ module.exports = async function handler(req, res) {
     return res.status(429).json({ error: 'Muitas tentativas. Solicite um novo código.' });
   }
 
-  if (code !== entry.code) {
-    // ALTO 5 — Update atômico com condição para evitar race condition
+  // Compara hash — nunca o código em plaintext
+  const inputHash = hashCode(code);
+  if (inputHash !== entry.code_hash) {
+    // Update atômico com condição para evitar race condition
     const { data: updated } = await supabase
       .from('auth_codes')
       .update({ attempts: entry.attempts + 1 })
       .eq('email', normalizedEmail)
-      .eq('attempts', entry.attempts) // garante atomicidade
+      .eq('attempts', entry.attempts)
       .select()
       .single();
 
@@ -68,14 +86,23 @@ module.exports = async function handler(req, res) {
     });
   }
 
+  // Código correto — remove da tabela
   await supabase.from('auth_codes').delete().eq('email', normalizedEmail);
 
-  // CRÍTICO 2 — Salva confirmação de OTP válido (expira em 10 minutos)
+  // Salva confirmação de OTP válido (expira em 10 minutos)
   await supabase.from('otp_verified').upsert({
-    email: normalizedEmail,
+    email:       normalizedEmail,
     verified_at: new Date().toISOString(),
-    expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+    expires_at:  new Date(Date.now() + 10 * 60 * 1000).toISOString(),
   });
 
+  // Limpeza de entradas expiradas na otp_verified (fire-and-forget)
+  supabase
+    .from('otp_verified')
+    .delete()
+    .lt('expires_at', new Date().toISOString())
+    .neq('email', normalizedEmail)
+    .then(() => {});
+
   return res.status(200).json({ success: true });
-}
+};
