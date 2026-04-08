@@ -18,8 +18,10 @@ const STRIP_RES = new Set([
 module.exports = async function handler(req, res) {
   if (cors(req, res)) return;
 
-  // /api/svc/rest/v1/... → /rest/v1/...
-  const slug   = req.url.replace(/^\/api\/svc/, '') || '/';
+  // Usa req.query.path (array catch-all) para construir o caminho sem depender de req.url
+  const pathParts = [].concat(req.query.path || []);
+  const qs     = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+  const slug   = '/' + pathParts.join('/') + qs;
   const target = `${SUPABASE_URL}${slug}`;
 
   const headers = {};
