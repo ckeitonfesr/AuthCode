@@ -90,8 +90,9 @@ module.exports = async function handler(req, res) {
   let body;
   if (!['GET', 'HEAD'].includes(req.method) && req.body) {
     body = JSON.stringify(req.body);
-    headers['content-type']   = 'application/json';
-    headers['content-length'] = Buffer.byteLength(body).toString();
+    headers['content-type'] = 'application/json';
+    // Não força content-length — deixa o fetch calcular para evitar mismatch
+    delete headers['content-length'];
   }
 
   const upstream = await fetch(target, { method: req.method, headers, body });
