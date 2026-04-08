@@ -1,8 +1,8 @@
-const cors = require('./_cors');
+const cors = require('../_cors');
 
-const SUPABASE_URL  = 'https://sineixguxvlmatnyvtdw.supabase.co';
-const ANON_KEY      = process.env.SUPABASE_ANON_KEY;
-const PROXY_TOKEN   = 'proxy-anon';
+const SUPABASE_URL = 'https://sineixguxvlmatnyvtdw.supabase.co';
+const ANON_KEY     = process.env.SUPABASE_ANON_KEY;
+const PROXY_TOKEN  = 'proxy-anon';
 
 const STRIP_REQ = new Set([
   'host', 'connection', 'transfer-encoding', 'content-length',
