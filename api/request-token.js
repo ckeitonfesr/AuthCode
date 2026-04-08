@@ -55,15 +55,11 @@ module.exports = async function handler(req, res) {
 
   const integrityDisabled = process.env.INTEGRITY_DISABLED === 'true';
 
-  if (!integrityDisabled) {
-    if (integrityToken && integrityNonce) {
-      const { valid, reason } = await verifyIntegrityToken(integrityToken, integrityNonce, platform);
-      if (!valid) {
-        console.warn(`[request-token] Integridade reprovada (${platform}): ${reason}`);
-        return res.status(403).json({ error: 'Verificação de integridade falhou.' });
-      }
-    } else if (process.env.NODE_ENV === 'production') {
-      return res.status(403).json({ error: 'Token de integridade obrigatório.' });
+  if (!integrityDisabled && integrityToken && integrityNonce) {
+    const { valid, reason } = await verifyIntegrityToken(integrityToken, integrityNonce, platform);
+    if (!valid) {
+      console.warn(`[request-token] Integridade reprovada (${platform}): ${reason}`);
+      return res.status(403).json({ error: 'Verificação de integridade falhou.' });
     }
   }
 

@@ -3,12 +3,12 @@ const { extractIp, checkIpRateLimit } = require('./_rate-limit');
 
 // Mensagens por status — espelhadas do app
 const STATUS_MESSAGES = {
-  'Em preparo':           { title: 'Pedido em preparo 🍳',   body: 'Estamos preparando seu pedido com carinho!' },
-  'Saiu para entrega':    { title: 'Saiu para entrega! 🛵',  body: 'Seu pedido está a caminho. Fique de olho!' },
-  'Entregue':             { title: 'Pedido entregue! ✅',     body: 'Bom proveito! Obrigado por pedir na 24h Conveniência.' },
-  'Cancelado':            { title: 'Pedido cancelado ❌',     body: 'Seu pedido foi cancelado. Entre em contato se precisar de ajuda.' },
-  'Aguardando pagamento': { title: 'Pedido recebido! 🎉',    body: 'Aguardando confirmação do pagamento.' },
-  'Em andamento':         { title: 'Pedido confirmado! 🎉',  body: 'Seu pedido foi confirmado e está sendo processado.' },
+  'Em preparo':           { title: 'Pedido em preparo',   body: 'Estamos preparando seu pedido.' },
+  'Saiu para entrega':    { title: 'Saiu para entrega',   body: 'Seu pedido está a caminho.' },
+  'Entregue':             { title: 'Pedido entregue',     body: 'Seu pedido foi entregue. Bom proveito!' },
+  'Cancelado':            { title: 'Pedido cancelado',    body: 'Seu pedido foi cancelado. Entre em contato se precisar de ajuda.' },
+  'Aguardando pagamento': { title: 'Pedido recebido',     body: 'Aguardando confirmação do pagamento.' },
+  'Em andamento':         { title: 'Pedido confirmado',   body: 'Seu pedido foi confirmado e está sendo processado.' },
 };
 
 module.exports = async function handler(req, res) {

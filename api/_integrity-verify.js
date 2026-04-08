@@ -67,14 +67,10 @@ async function getGoogleAccessToken(serviceAccountJson) {
 async function verifyIntegrityToken(integrityToken, expectedNonce, platform = 'android') {
   const saJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
 
-  // Se a service account não estiver configurada, ignora verificação (apenas em dev)
+  // Se a service account não estiver configurada, ignora verificação
   if (!saJson) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.warn('[integrity] GOOGLE_SERVICE_ACCOUNT_JSON não configurado — verificação ignorada em dev');
-      return { valid: true };
-    }
-    console.error('[integrity] GOOGLE_SERVICE_ACCOUNT_JSON ausente em produção');
-    return { valid: false, reason: 'Serviço de integridade não configurado' };
+    console.warn('[integrity] GOOGLE_SERVICE_ACCOUNT_JSON não configurado — verificação ignorada');
+    return { valid: true };
   }
 
   evict();
