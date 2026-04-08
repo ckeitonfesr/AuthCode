@@ -2,6 +2,7 @@ const crypto  = require('crypto');
 const supabase = require('./_supabase');
 const { validateToken } = require('./_token');
 const { checkIpRateLimit, extractIp } = require('./_rate-limit');
+const cors = require('./_cors');
 
 const MAX_ATTEMPTS   = 5;
 const VERIFY_RATE    = 10; // max 10 tentativas por IP por minuto
@@ -13,6 +14,7 @@ function hashCode(code) {
 }
 
 module.exports = async function handler(req, res) {
+  if (cors(req, res)) return;
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }

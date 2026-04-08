@@ -2,6 +2,7 @@ const { createClient } = require('@supabase/supabase-js');
 const supabase          = require('./_supabase');
 const { validateToken } = require('./_token');
 const { checkIpRateLimit, extractIp } = require('./_rate-limit');
+const cors = require('./_cors');
 
 const ORDER_RATE_LIMIT = 5; // max 5 pedidos por IP por minuto
 
@@ -12,6 +13,7 @@ const supabaseAdmin = createClient(
 );
 
 module.exports = async function handler(req, res) {
+  if (cors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).end();
 
   const ip = extractIp(req);

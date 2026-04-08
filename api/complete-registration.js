@@ -2,6 +2,7 @@ const crypto    = require('crypto');
 const supabase  = require('./_supabase');
 const { validateToken } = require('./_token');
 const { checkIpRateLimit, extractIp } = require('./_rate-limit');
+const cors = require('./_cors');
 
 function isValidCpf(digits) {
   if (/^(\d)\1{10}$/.test(digits)) return false; // ex: 111.111.111-11
@@ -18,6 +19,7 @@ function isValidCpf(digits) {
 }
 
 module.exports = async function handler(req, res) {
+  if (cors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).end();
 
   const ip = extractIp(req);

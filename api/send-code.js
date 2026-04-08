@@ -4,6 +4,7 @@ const crypto           = require('crypto');
 const supabase         = require('./_supabase');
 const { validateToken } = require('./_token');
 const { checkIpRateLimit, extractIp } = require('./_rate-limit');
+const cors = require('./_cors');
 
 // Cliente separado para consultar schema auth (service role necessário)
 const supabaseAuth = createClient(
@@ -37,6 +38,7 @@ async function minDelay(startMs) {
 }
 
 module.exports = async function handler(req, res) {
+  if (cors(req, res)) return;
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }

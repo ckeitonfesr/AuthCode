@@ -2,10 +2,12 @@ const crypto = require('crypto');
 const { generateToken }      = require('./_token');
 const { checkIpRateLimit, extractIp } = require('./_rate-limit');
 const { verifyIntegrityToken } = require('./_integrity-verify');
+const cors = require('./_cors');
 
 const TOKEN_RATE_LIMIT = 10; // max 10 tokens por IP por minuto
 
 module.exports = async function handler(req, res) {
+  if (cors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).end();
 
   const ip = extractIp(req);
