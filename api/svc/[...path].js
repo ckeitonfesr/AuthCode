@@ -18,10 +18,16 @@ const STRIP_RES = new Set([
 module.exports = async function handler(req, res) {
   if (cors(req, res)) return;
 
-  // Usa req.query.path (array catch-all) para construir o caminho sem depender de req.url
-  const pathParts = [].concat(req.query.path || []);
-  const qs     = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
-  const slug   = '/' + pathParts.join('/') + qs;
+  // Constrói path a partir do catch-all — req.query.path pode ser array ou string
+  const pathParts = Array.isArray(req.query.path)
+    ? req.query.path
+    : (req.query.path || '').split('/').filter(Boolean);
+
+  // Remove o param 'path' injetado pelo Vercel rewrite da query string
+  const parsedUrl = new URL(req.url, 'http://x');
+  parsedUrl.searchParams.delete('path');
+  const qs   = parsedUrl.search; // '?select=*&user_id=eq.xxx' ou ''
+  const slug = '/' + pathParts.join('/') + qs;
   const target = `${SUPABASE_URL}${slug}`;
 
   const headers = {};
