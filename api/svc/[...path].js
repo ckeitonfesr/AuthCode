@@ -1,8 +1,20 @@
 const cors = require('../_cors');
+const { checkIpRateLimit, extractIp } = require('../_rate-limit');
 
-const SUPABASE_URL = 'https://sineixguxvlmatnyvtdw.supabase.co';
-const ANON_KEY     = process.env.SUPABASE_ANON_KEY;
-const PROXY_TOKEN  = 'proxy-anon';
+const SUPABASE_URL  = 'https://sineixguxvlmatnyvtdw.supabase.co';
+const ANON_KEY      = process.env.SUPABASE_ANON_KEY;
+const PROXY_TOKEN   = 'proxy-anon';
+const ALLOWED_ORIGIN = 'https://24hrs-central.site';
+
+// Tabelas/paths que o proxy anônimo pode acessar (leitura pública)
+const ANON_WHITELIST = new Set([
+  'products', 'categories', 'profiles', 'favorites',
+  'cart_items', 'orders', 'order_items', 'addresses',
+  'otp_verified',
+]);
+
+// Rate limit: max 60 req/min por IP no proxy
+const PROXY_RATE = 60;
 
 const STRIP_REQ = new Set([
   'host', 'connection', 'transfer-encoding', 'content-length',
@@ -18,15 +30,47 @@ const STRIP_RES = new Set([
 module.exports = async function handler(req, res) {
   if (cors(req, res)) return;
 
+  // Bloqueia acesso direto sem Origin/Referer do site (bots, curl, scrapers)
+  const origin  = req.headers['origin']  || '';
+  const referer = req.headers['referer'] || '';
+  const hasValidSource =
+    origin.startsWith(ALLOWED_ORIGIN) ||
+    referer.startsWith(ALLOWED_ORIGIN);
+
+  if (!hasValidSource) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  // Rate limiting por IP
+  const ip = extractIp(req);
+  const rl = checkIpRateLimit(ip, PROXY_RATE);
+  if (!rl.allowed) {
+    return res.status(429).json({
+      error: `Too many requests. Try again in ${rl.retryAfterSec}s.`,
+    });
+  }
+
   // Constrói path a partir do catch-all — req.query.path pode ser array ou string
   const pathParts = Array.isArray(req.query.path)
     ? req.query.path
     : (req.query.path || '').split('/').filter(Boolean);
 
+  // Whitelist de tabelas para requests anônimos (proxy-anon)
+  const authHeader = req.headers['authorization'] || '';
+  const isAnonRequest = !authHeader || authHeader === `Bearer ${PROXY_TOKEN}`;
+
+  if (isAnonRequest) {
+    // pathParts: ['rest', 'v1', 'table_name', ...]
+    const table = pathParts[2]; // rest/v1/{table}
+    if (table && !ANON_WHITELIST.has(table)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+  }
+
   // Remove o param 'path' injetado pelo Vercel rewrite da query string
   const parsedUrl = new URL(req.url, 'http://x');
   parsedUrl.searchParams.delete('path');
-  const qs   = parsedUrl.search; // '?select=*&user_id=eq.xxx' ou ''
+  const qs   = parsedUrl.search;
   const slug = '/' + pathParts.join('/') + qs;
   const target = `${SUPABASE_URL}${slug}`;
 
