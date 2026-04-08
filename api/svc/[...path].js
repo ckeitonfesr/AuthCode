@@ -55,13 +55,14 @@ module.exports = async function handler(req, res) {
     ? req.query.path
     : (req.query.path || '').split('/').filter(Boolean);
 
-  // Whitelist de tabelas para requests anônimos (proxy-anon)
+  // Whitelist de tabelas para requests anônimos (proxy-anon) — só para REST, não para auth
   const authHeader = req.headers['authorization'] || '';
   const isAnonRequest = !authHeader || authHeader === `Bearer ${PROXY_TOKEN}`;
+  const isRestPath = pathParts[0] === 'rest';
 
-  if (isAnonRequest) {
+  if (isAnonRequest && isRestPath) {
     // pathParts: ['rest', 'v1', 'table_name', ...]
-    const table = pathParts[2]; // rest/v1/{table}
+    const table = pathParts[2];
     if (table && !ANON_WHITELIST.has(table)) {
       return res.status(403).json({ error: 'Forbidden' });
     }
