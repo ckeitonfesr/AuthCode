@@ -17,18 +17,17 @@ module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
   // Autenticação do webhook via secret compartilhado
+  // WEBHOOK_SECRET é obrigatório — se não estiver configurado, rejeita tudo
   const webhookSecret = process.env.WEBHOOK_SECRET;
-  if (webhookSecret) {
-    const authHeader = req.headers['x-webhook-secret'];
-    if (authHeader !== webhookSecret) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+  const authHeader    = req.headers['x-webhook-secret'];
+  if (!webhookSecret || authHeader !== webhookSecret) {
+    return res.status(401).json({ error: 'Unauthorized' });
   }
 
   // Rate limit por IP (proteção extra)
   const ip = extractIp(req);
-  const { blocked } = checkIpRateLimit(ip, 60); // 60 por minuto
-  if (blocked) return res.status(429).json({ error: 'Too many requests' });
+  const rl = checkIpRateLimit(ip, 60); // 60 por minuto
+  if (!rl.allowed) return res.status(429).json({ error: 'Too many requests' });
 
   // Supabase Database Webhook envia o payload do tipo:
   // { type: 'UPDATE', table: 'orders', record: {...}, old_record: {...} }

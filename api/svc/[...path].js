@@ -10,7 +10,6 @@ const ALLOWED_ORIGIN = 'https://24hrs-central.site';
 const ANON_WHITELIST = new Set([
   'products', 'categories', 'profiles', 'favorites',
   'cart_items', 'orders', 'order_items', 'addresses',
-  'otp_verified',
 ]);
 
 // Rate limit: max 60 req/min por IP no proxy

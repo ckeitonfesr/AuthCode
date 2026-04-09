@@ -40,6 +40,17 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'Dados incompletos.' });
   }
 
+  // Validação de tipo e comprimento — rejeita payloads malformados
+  if (typeof email !== 'string' || email.length > 254) {
+    return res.status(400).json({ error: 'Email invalido.' });
+  }
+  if (typeof fullName !== 'string' || fullName.trim().length < 2 || fullName.length > 200) {
+    return res.status(400).json({ error: 'Nome invalido.' });
+  }
+  if (typeof phone !== 'string' || phone.length > 20) {
+    return res.status(400).json({ error: 'Telefone invalido.' });
+  }
+
   // Valida senha no backend (não confiar só no cliente)
   // Mínimo 10 chars, máximo 128, deve ter maiúscula + minúscula + número
   // Caracteres especiais são permitidos para maximizar entropia

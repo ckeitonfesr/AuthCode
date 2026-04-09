@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const { checkIpRateLimit, extractIp } = require('./_rate-limit');
+const cors = require('./_cors');
 
 const NONCE_RATE  = 20;             // max 20 nonces por IP por minuto
 const NONCE_TTL   = 90 * 1000;      // nonce válido por 90 segundos
@@ -19,6 +20,7 @@ function evictNonces() {
  * O servidor pode verificar autenticidade + frescor sem armazenar estado no banco.
  */
 module.exports = async function handler(req, res) {
+  if (cors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).end();
 
   const ip = extractIp(req);

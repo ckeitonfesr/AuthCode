@@ -46,7 +46,7 @@ module.exports = async function handler(req, res) {
   if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: 'Carrinho vazio.' });
   }
-  if (!paymentMethod || !['pix', 'cash'].includes(paymentMethod)) {
+  if (!paymentMethod || !['pix', 'cash', 'card'].includes(paymentMethod)) {
     return res.status(400).json({ error: 'Forma de pagamento inválida.' });
   }
   if (!address || typeof address !== 'string' || address.trim().length < 5) {
