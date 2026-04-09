@@ -124,6 +124,18 @@ module.exports = async function handler(req, res) {
       }
     }
 
+    // Favoritos: max 50 por usuário
+    if (table === 'favorites' && req.method === 'POST') {
+      const countRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/favorites?user_id=eq.${req.body.user_id}&select=id`,
+        { headers: { apikey: ANON_KEY, authorization: headers['authorization'] } }
+      );
+      const existing = await countRes.json();
+      if (Array.isArray(existing) && existing.length >= 50) {
+        return res.status(400).json({ error: 'Máximo de 50 favoritos.' });
+      }
+    }
+
     // Cart: max 20 produtos distintos, quantidade 1-10 por produto
     if (table === 'cart_items') {
       const qty = req.body.quantity;
