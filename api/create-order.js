@@ -101,15 +101,15 @@ module.exports = async function handler(req, res) {
   }, 0);
   const subtotalRounded = Math.round(subtotal * 100) / 100;
 
-  // Valida pedido mínimo (backend — não confiar no frontend)
-  if (subtotalRounded < MIN_ORDER_VALUE) {
-    return res.status(400).json({
-      error: `Pedido mínimo de R$ ${MIN_ORDER_VALUE.toFixed(2)}.`,
-    });
-  }
-
   // Adiciona taxa de entrega ao total
   const totalRounded = Math.round((subtotalRounded + DELIVERY_FEE) * 100) / 100;
+
+  // Valida pedido mínimo sobre o total (subtotal + taxa >= R$30)
+  if (totalRounded < MIN_ORDER_VALUE) {
+    return res.status(400).json({
+      error: `Pedido mínimo de R$ ${MIN_ORDER_VALUE.toFixed(2)} (com taxa de entrega).`,
+    });
+  }
 
   // Status inicial depende da forma de pagamento
   const initialStatus = paymentMethod === 'pix' ? 'Aguardando pagamento' : 'Em andamento';
