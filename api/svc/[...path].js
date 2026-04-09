@@ -87,6 +87,18 @@ module.exports = async function handler(req, res) {
   headers['apikey'] = ANON_KEY;
   headers['host']   = new URL(SUPABASE_URL).host;
 
+  // ── Limite de 3 endereços por usuário (intercepta INSERT em addresses) ──
+  if (isRestPath && pathParts[2] === 'addresses' && req.method === 'POST' && req.body?.user_id) {
+    const countRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/addresses?user_id=eq.${req.body.user_id}&select=id`,
+      { headers: { apikey: ANON_KEY, authorization: headers['authorization'] } }
+    );
+    const existing = await countRes.json();
+    if (Array.isArray(existing) && existing.length >= 3) {
+      return res.status(400).json({ error: 'Máximo de 3 endereços por usuário.' });
+    }
+  }
+
   let body;
   if (!['GET', 'HEAD'].includes(req.method) && req.body) {
     body = JSON.stringify(req.body);

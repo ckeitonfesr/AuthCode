@@ -46,10 +46,13 @@ module.exports = async function handler(req, res) {
   if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: 'Carrinho vazio.' });
   }
+  if (items.length > 20) {
+    return res.status(400).json({ error: 'Máximo de 20 produtos por pedido.' });
+  }
   if (!paymentMethod || !['pix', 'cash', 'card'].includes(paymentMethod)) {
     return res.status(400).json({ error: 'Forma de pagamento inválida.' });
   }
-  if (!address || typeof address !== 'string' || address.trim().length < 5) {
+  if (!address || typeof address !== 'string' || address.trim().length < 5 || address.length > 500) {
     return res.status(400).json({ error: 'Endereço inválido.' });
   }
 
@@ -58,8 +61,8 @@ module.exports = async function handler(req, res) {
     if (!item.productId || typeof item.productId !== 'string') {
       return res.status(400).json({ error: 'Item inválido: productId ausente.' });
     }
-    if (!Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 99) {
-      return res.status(400).json({ error: 'Quantidade inválida (1–99).' });
+    if (!Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 10) {
+      return res.status(400).json({ error: 'Quantidade inválida (1–10 por produto).' });
     }
   }
 

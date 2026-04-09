@@ -87,6 +87,6 @@ module.exports = async function handler(req, res) {
   return res.status(200).json({ ok: true, result });
   } catch (err) {
     console.error('[send-notification] erro:', err);
-    return res.status(500).json({ error: 'Internal server error', detail: err.message });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 };
