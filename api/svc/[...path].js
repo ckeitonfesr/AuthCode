@@ -87,15 +87,39 @@ module.exports = async function handler(req, res) {
   headers['apikey'] = ANON_KEY;
   headers['host']   = new URL(SUPABASE_URL).host;
 
-  // ── Limite de 3 endereços por usuário (intercepta INSERT em addresses) ──
-  if (isRestPath && pathParts[2] === 'addresses' && req.method === 'POST' && req.body?.user_id) {
-    const countRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/addresses?user_id=eq.${req.body.user_id}&select=id`,
-      { headers: { apikey: ANON_KEY, authorization: headers['authorization'] } }
-    );
-    const existing = await countRes.json();
-    if (Array.isArray(existing) && existing.length >= 3) {
-      return res.status(400).json({ error: 'Máximo de 3 endereços por usuário.' });
+  // ── Limites de negócio no proxy (backend) ──
+  if (isRestPath && req.body?.user_id) {
+    const table = pathParts[2];
+
+    // Max 3 endereços por usuário
+    if (table === 'addresses' && req.method === 'POST') {
+      const countRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/addresses?user_id=eq.${req.body.user_id}&select=id`,
+        { headers: { apikey: ANON_KEY, authorization: headers['authorization'] } }
+      );
+      const existing = await countRes.json();
+      if (Array.isArray(existing) && existing.length >= 3) {
+        return res.status(400).json({ error: 'Máximo de 3 endereços por usuário.' });
+      }
+    }
+
+    // Cart: max 20 produtos distintos, quantidade 1-10 por produto
+    if (table === 'cart_items') {
+      const qty = req.body.quantity;
+      if (qty !== undefined && (!Number.isInteger(qty) || qty < 1 || qty > 10)) {
+        return res.status(400).json({ error: 'Quantidade inválida (1–10 por produto).' });
+      }
+
+      if (req.method === 'POST') {
+        const countRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/cart_items?user_id=eq.${req.body.user_id}&select=product_id`,
+          { headers: { apikey: ANON_KEY, authorization: headers['authorization'] } }
+        );
+        const existing = await countRes.json();
+        if (Array.isArray(existing) && existing.length >= 20) {
+          return res.status(400).json({ error: 'Máximo de 20 produtos no carrinho.' });
+        }
+      }
     }
   }
 
