@@ -5,6 +5,8 @@ const { checkIpRateLimit, extractIp } = require('./_rate-limit');
 const cors = require('./_cors');
 
 const ORDER_RATE_LIMIT = 5; // max 5 pedidos por IP por minuto
+const MIN_ORDER_VALUE  = 30;  // pedido mínimo R$30
+const DELIVERY_FEE     = 5;   // taxa de entrega fixa R$5
 
 // Cliente com service role para validar o JWT do usuário
 const supabaseAdmin = createClient(
@@ -94,10 +96,20 @@ module.exports = async function handler(req, res) {
   }
 
   // 5 — Calcula total no servidor com preços do banco
-  const total = items.reduce((sum, item) => {
+  const subtotal = items.reduce((sum, item) => {
     return sum + productMap[item.productId].price * item.quantity;
   }, 0);
-  const totalRounded = Math.round(total * 100) / 100;
+  const subtotalRounded = Math.round(subtotal * 100) / 100;
+
+  // Valida pedido mínimo (backend — não confiar no frontend)
+  if (subtotalRounded < MIN_ORDER_VALUE) {
+    return res.status(400).json({
+      error: `Pedido mínimo de R$ ${MIN_ORDER_VALUE.toFixed(2)}.`,
+    });
+  }
+
+  // Adiciona taxa de entrega ao total
+  const totalRounded = Math.round((subtotalRounded + DELIVERY_FEE) * 100) / 100;
 
   // Status inicial depende da forma de pagamento
   const initialStatus = paymentMethod === 'pix' ? 'Aguardando pagamento' : 'Em andamento';
@@ -127,7 +139,9 @@ module.exports = async function handler(req, res) {
   return res.status(200).json({
     success: true,
     orderId,
-    total:   totalRounded,
-    status:  initialStatus,
+    subtotal:    subtotalRounded,
+    deliveryFee: DELIVERY_FEE,
+    total:       totalRounded,
+    status:      initialStatus,
   });
 };
