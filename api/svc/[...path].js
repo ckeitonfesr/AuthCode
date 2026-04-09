@@ -65,6 +65,12 @@ module.exports = async function handler(req, res) {
     if (table && !ANON_WHITELIST.has(table)) {
       return res.status(403).json({ error: 'Forbidden' });
     }
+    // Bloqueia escrita anônima em tabelas do usuário (precisa estar logado)
+    const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+    const USER_TABLES = new Set(['cart_items', 'favorites', 'orders', 'order_items', 'addresses', 'profiles']);
+    if (WRITE_METHODS.has(req.method) && USER_TABLES.has(table)) {
+      return res.status(401).json({ error: 'Autenticação necessária para esta operação.' });
+    }
   }
 
   // Remove o param 'path' injetado pelo Vercel rewrite da query string
@@ -87,9 +93,24 @@ module.exports = async function handler(req, res) {
   headers['apikey'] = ANON_KEY;
   headers['host']   = new URL(SUPABASE_URL).host;
 
+  // ── Extrai user ID do JWT para validação de ownership ──
+  let jwtUserId = null;
+  if (headers['authorization'] && headers['authorization'] !== `Bearer ${ANON_KEY}`) {
+    try {
+      const token = headers['authorization'].replace('Bearer ', '');
+      const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+      jwtUserId = payload.sub || null;
+    } catch {}
+  }
+
   // ── Limites de negócio no proxy (backend) ──
   if (isRestPath && req.body?.user_id) {
     const table = pathParts[2];
+
+    // Valida que o user_id no body pertence ao usuário autenticado (anti-spoofing)
+    if (jwtUserId && req.body.user_id !== jwtUserId) {
+      return res.status(403).json({ error: 'user_id não corresponde ao usuário autenticado.' });
+    }
 
     // Max 3 endereços por usuário
     if (table === 'addresses' && req.method === 'POST') {
