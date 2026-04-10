@@ -5,7 +5,8 @@ const { checkIpRateLimit, extractIp } = require('./_rate-limit');
 const { checkRateLimit } = require('./_rate-limit-db');
 const cors = require('./_cors');
 
-const ORDER_RATE_LIMIT = 5; // max 5 pedidos por IP por minuto
+const ORDER_RATE_LIMIT      = 5; // max 5 pedidos por IP por minuto
+const ORDER_RATE_LIMIT_USER = 2; // max 2 pedidos por usuário por minuto
 const MIN_ORDER_VALUE  = 30;  // pedido mínimo R$30
 const DELIVERY_FEE     = 5;   // taxa de entrega fixa R$5
 
@@ -47,7 +48,30 @@ module.exports = async function handler(req, res) {
     return res.status(401).json({ error: 'Sessão inválida. Faça login novamente.' });
   }
 
-  // 3 — Valida corpo da requisição
+  // 3 — Rate limit por usuário (além do rate limit por IP já feito acima)
+  const rlUser = await checkRateLimit(`user:${user.id}:co`, ORDER_RATE_LIMIT_USER);
+  if (!rlUser.allowed) {
+    return res.status(429).json({
+      error: `Muitas requisições. Tente novamente em ${rlUser.retryAfterSec}s.`,
+    });
+  }
+
+  // Proteção anti-double-submit: bloqueia pedido duplicado nos últimos 30s
+  const since = new Date(Date.now() - 30_000).toISOString();
+  const { data: recentOrders } = await supabaseAdmin
+    .from('orders')
+    .select('id, created_at')
+    .eq('user_id', user.id)
+    .gte('created_at', since)
+    .limit(1);
+
+  if (recentOrders && recentOrders.length > 0) {
+    return res.status(429).json({
+      error: 'Pedido recente detectado. Aguarde 30 segundos antes de tentar novamente.',
+    });
+  }
+
+  // 4 — Valida corpo da requisição
   const { items, paymentMethod, address } = req.body ?? {};
 
   if (!Array.isArray(items) || items.length === 0) {
