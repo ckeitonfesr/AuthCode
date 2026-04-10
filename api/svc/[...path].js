@@ -71,6 +71,11 @@ module.exports = async function handler(req, res) {
     if (WRITE_METHODS.has(req.method) && USER_TABLES.has(table)) {
       return res.status(401).json({ error: 'Autenticação necessária para esta operação.' });
     }
+    // Bloqueia qualquer escrita em tabelas de catálogo — somente leitura via API
+    const READONLY_TABLES = new Set(['products', 'categories', 'store_settings']);
+    if (WRITE_METHODS.has(req.method) && READONLY_TABLES.has(table)) {
+      return res.status(403).json({ error: 'Tabela somente leitura.' });
+    }
   }
 
   // Remove o param 'path' injetado pelo Vercel rewrite da query string
