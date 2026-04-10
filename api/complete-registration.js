@@ -108,6 +108,15 @@ module.exports = async function handler(req, res) {
   if (cpf) {
     const digits = cpf.replace(/\D/g, '');
     if (digits.length === 11 && isValidCpf(digits)) {
+      // Verifica unicidade do CPF antes de salvar
+      const { data: existing } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('cpf', digits)
+        .maybeSingle();
+      if (existing) {
+        return res.status(409).json({ error: 'CPF já cadastrado.' });
+      }
       validatedCpf = digits;
     }
   }

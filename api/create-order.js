@@ -2,6 +2,7 @@ const { createClient } = require('@supabase/supabase-js');
 const supabase          = require('./_supabase');
 const { validateToken } = require('./_token');
 const { checkIpRateLimit, extractIp } = require('./_rate-limit');
+const { checkRateLimit } = require('./_rate-limit-db');
 const cors = require('./_cors');
 
 const ORDER_RATE_LIMIT = 5; // max 5 pedidos por IP por minuto
@@ -20,7 +21,11 @@ module.exports = async function handler(req, res) {
 
   const ip = extractIp(req);
 
-  const rl = checkIpRateLimit(ip, ORDER_RATE_LIMIT);
+  const [rlDb, rlMem] = await Promise.all([
+    checkRateLimit(`ip:${ip}:co`, ORDER_RATE_LIMIT),
+    Promise.resolve(checkIpRateLimit(ip, ORDER_RATE_LIMIT)),
+  ]);
+  const rl = rlDb.allowed ? rlMem : rlDb;
   if (!rl.allowed) {
     return res.status(429).json({
       error: `Muitas requisições. Tente novamente em ${rl.retryAfterSec}s.`,

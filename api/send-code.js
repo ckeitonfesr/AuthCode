@@ -4,6 +4,7 @@ const crypto           = require('crypto');
 const supabase         = require('./_supabase');
 const { validateToken } = require('./_token');
 const { checkIpRateLimit, extractIp } = require('./_rate-limit');
+const { checkRateLimit } = require('./_rate-limit-db');
 const cors = require('./_cors');
 
 // Cliente separado para consultar schema auth (service role necessário)
@@ -46,8 +47,12 @@ module.exports = async function handler(req, res) {
   const start = Date.now();
   const ip = extractIp(req);
 
-  // Rate limiting por IP
-  const rl = checkIpRateLimit(ip, SENDCODE_RATE);
+  // Rate limiting centralizado (Supabase) + in-memory como camada extra
+  const [rlDb, rlMem] = await Promise.all([
+    checkRateLimit(`ip:${ip}:sc`, SENDCODE_RATE),
+    Promise.resolve(checkIpRateLimit(ip, SENDCODE_RATE)),
+  ]);
+  const rl = rlDb.allowed ? rlMem : rlDb;
   if (!rl.allowed) {
     return res.status(429).json({
       error: `Muitas requisições. Tente novamente em ${rl.retryAfterSec}s.`,

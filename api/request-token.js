@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { generateToken }      = require('./_token');
 const { checkIpRateLimit, extractIp } = require('./_rate-limit');
+const { checkRateLimit } = require('./_rate-limit-db');
 const { verifyIntegrityToken } = require('./_integrity-verify');
 const cors = require('./_cors');
 
@@ -12,8 +13,12 @@ module.exports = async function handler(req, res) {
 
   const ip = extractIp(req);
 
-  // Rate limiting por IP antes de qualquer outra verificação
-  const rl = checkIpRateLimit(ip, TOKEN_RATE_LIMIT);
+  // Rate limiting centralizado (Supabase) + in-memory como camada extra
+  const [rlDb, rlMem] = await Promise.all([
+    checkRateLimit(`ip:${ip}:rt`, TOKEN_RATE_LIMIT),
+    Promise.resolve(checkIpRateLimit(ip, TOKEN_RATE_LIMIT)),
+  ]);
+  const rl = rlDb.allowed ? rlMem : rlDb;
   if (!rl.allowed) {
     return res.status(429).json({
       error: `Muitas requisições. Tente novamente em ${rl.retryAfterSec}s.`,
@@ -29,8 +34,10 @@ module.exports = async function handler(req, res) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  if (!deviceId || typeof deviceId !== 'string' || deviceId.length < 4) {
-    return res.status(400).json({ error: 'Device ID required' });
+  // Valida formato UUID v4 (gerado pelo crypto.randomUUID() do client)
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!deviceId || typeof deviceId !== 'string' || !UUID_RE.test(deviceId)) {
+    return res.status(400).json({ error: 'Device ID inválido.' });
   }
 
   // Rejeita requests com timestamp fora da janela de 10 segundos (replay attack)
