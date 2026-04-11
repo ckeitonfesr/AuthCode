@@ -3,7 +3,6 @@ const crypto = require('crypto');
 const PACKAGE_NAME = 'com.cleitontwz.convenienciacentral';
 const NONCE_TTL_MS = 90 * 1000;
 
-// Cache de tokens do Google já usados nesta instância (evita reuso dentro da janela)
 const usedIntegrityTokens = new Map();
 
 function evict() {
@@ -13,10 +12,6 @@ function evict() {
   }
 }
 
-/**
- * Obtém access token do Google via JWT de service account (RS256).
- * Não requer biblioteca externa — usa apenas o módulo crypto nativo do Node.
- */
 async function getGoogleAccessToken(serviceAccountJson) {
   const sa  = typeof serviceAccountJson === 'string'
     ? JSON.parse(serviceAccountJson)
@@ -56,18 +51,10 @@ async function getGoogleAccessToken(serviceAccountJson) {
   return tokenData.access_token;
 }
 
-/**
- * Verifica um token do Play Integrity (Android) ou App Attest (iOS).
- *
- * @param {string} integrityToken  - token recebido do dispositivo
- * @param {string} expectedNonce   - nonce que o servidor emitiu
- * @param {'android'|'ios'} platform
- * @returns {{ valid: boolean, reason?: string }}
- */
 async function verifyIntegrityToken(integrityToken, expectedNonce, platform = 'android') {
   const saJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
 
-  // Se a service account não estiver configurada, ignora verificação
+  
   if (!saJson) {
     console.warn('[integrity] GOOGLE_SERVICE_ACCOUNT_JSON não configurado — verificação ignorada');
     return { valid: true };
@@ -75,7 +62,7 @@ async function verifyIntegrityToken(integrityToken, expectedNonce, platform = 'a
 
   evict();
 
-  // Impede reuso do mesmo token de integridade
+  
   const tokenKey = crypto.createHash('sha256').update(integrityToken).digest('hex');
   if (usedIntegrityTokens.has(tokenKey)) {
     return { valid: false, reason: 'Token de integridade reutilizado' };
@@ -106,29 +93,29 @@ async function verifyIntegrityToken(integrityToken, expectedNonce, platform = 'a
 
       const payload = result?.tokenPayloadExternal;
 
-      // 1. Confere o nonce
+      
       if (payload?.requestDetails?.nonce !== expectedNonce) {
         return { valid: false, reason: 'Nonce inválido' };
       }
 
-      // 2. Confere package name
+      
       if (payload?.requestDetails?.requestPackageName !== PACKAGE_NAME) {
         return { valid: false, reason: 'Package name inválido' };
       }
 
-      // 3. Confere frescor do token (máx 90 segundos)
+      
       const issuedMs = Number(payload?.requestDetails?.timestampMillis);
       if (!issuedMs || Date.now() - issuedMs > NONCE_TTL_MS) {
         return { valid: false, reason: 'Token de integridade expirado' };
       }
 
-      // 4. Confere reconhecimento do app
+      
       const appVerdict = payload?.appIntegrity?.appRecognitionVerdict;
       if (!['PLAY_RECOGNIZED', 'UNRECOGNIZED_VERSION'].includes(appVerdict)) {
         return { valid: false, reason: `App não reconhecido: ${appVerdict}` };
       }
 
-      // 5. Confere integridade do dispositivo
+      
       const deviceVerdicts = payload?.deviceIntegrity?.deviceRecognitionVerdict ?? [];
       if (!deviceVerdicts.includes('MEETS_DEVICE_INTEGRITY')) {
         return { valid: false, reason: `Dispositivo comprometido: ${deviceVerdicts.join(',')}` };
@@ -138,8 +125,8 @@ async function verifyIntegrityToken(integrityToken, expectedNonce, platform = 'a
       return { valid: true };
 
     } else {
-      // iOS — App Attest: a verificação completa requer Apple DeviceCheck API
-      // Por ora, aceitamos o token com aviso (implementação completa requer apple-app-attest)
+      
+      
       console.warn('[integrity] Verificação iOS App Attest não implementada — aceitando');
       usedIntegrityTokens.set(tokenKey, Date.now() + NONCE_TTL_MS);
       return { valid: true };

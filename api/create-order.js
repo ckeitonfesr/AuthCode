@@ -5,12 +5,11 @@ const { checkIpRateLimit, extractIp } = require('./_rate-limit');
 const { checkRateLimit } = require('./_rate-limit-db');
 const cors = require('./_cors');
 
-const ORDER_RATE_LIMIT      = 5; // max 5 pedidos por IP por minuto
-const ORDER_RATE_LIMIT_USER = 2; // max 2 pedidos por usuário por minuto
-const MIN_ORDER_VALUE  = 30;  // pedido mínimo R$30
-const DELIVERY_FEE     = 5;   // taxa de entrega fixa R$5
+const ORDER_RATE_LIMIT      = 5; 
+const ORDER_RATE_LIMIT_USER = 2; 
+const MIN_ORDER_VALUE  = 30;  
+const DELIVERY_FEE     = 5;   
 
-// Cliente com service role para validar o JWT do usuário
 const supabaseAdmin = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -33,13 +32,13 @@ module.exports = async function handler(req, res) {
     });
   }
 
-  // 1 — Valida o token de API (request-token flow)
+  
   const token    = req.headers['x-request-token'];
   const deviceId = req.headers['x-device-id'];
   const isValid  = await validateToken(token, deviceId, req);
   if (!isValid) return res.status(401).json({ error: 'Token inválido ou expirado.' });
 
-  // 2 — Valida o JWT do usuário Supabase (prova identidade do usuário autenticado)
+  
   const userJwt = req.headers['x-user-token'];
   if (!userJwt) return res.status(401).json({ error: 'Autenticação de usuário necessária.' });
 
@@ -48,7 +47,7 @@ module.exports = async function handler(req, res) {
     return res.status(401).json({ error: 'Sessão inválida. Faça login novamente.' });
   }
 
-  // 3 — Rate limit por usuário (além do rate limit por IP já feito acima)
+  
   const rlUser = await checkRateLimit(`user:${user.id}:co`, ORDER_RATE_LIMIT_USER);
   if (!rlUser.allowed) {
     return res.status(429).json({
@@ -56,7 +55,7 @@ module.exports = async function handler(req, res) {
     });
   }
 
-  // Proteção anti-double-submit: bloqueia pedido duplicado nos últimos 30s
+  
   const since = new Date(Date.now() - 30_000).toISOString();
   const { data: recentOrders } = await supabaseAdmin
     .from('orders')
@@ -71,7 +70,7 @@ module.exports = async function handler(req, res) {
     });
   }
 
-  // 4 — Valida corpo da requisição
+  
   const { items, paymentMethod, address } = req.body ?? {};
 
   if (!Array.isArray(items) || items.length === 0) {
@@ -87,7 +86,7 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'Endereço inválido.' });
   }
 
-  // Valida estrutura dos itens antes de consultar o banco
+  
   for (const item of items) {
     if (!item.productId || typeof item.productId !== 'string') {
       return res.status(400).json({ error: 'Item inválido: productId ausente.' });
@@ -97,7 +96,7 @@ module.exports = async function handler(req, res) {
     }
   }
 
-  // 4 — Busca preços reais do banco (nunca confia nos preços do cliente)
+  
   const productIds = [...new Set(items.map(i => i.productId))];
 
   const { data: products, error: productsErr } = await supabase
@@ -124,26 +123,26 @@ module.exports = async function handler(req, res) {
     }
   }
 
-  // 5 — Calcula total no servidor com preços do banco
+  
   const subtotal = items.reduce((sum, item) => {
     return sum + productMap[item.productId].price * item.quantity;
   }, 0);
   const subtotalRounded = Math.round(subtotal * 100) / 100;
 
-  // Adiciona taxa de entrega ao total
+  
   const totalRounded = Math.round((subtotalRounded + DELIVERY_FEE) * 100) / 100;
 
-  // Valida pedido mínimo sobre o total (subtotal + taxa >= R$30)
+  
   if (totalRounded < MIN_ORDER_VALUE) {
     return res.status(400).json({
       error: `Pedido mínimo de R$ ${MIN_ORDER_VALUE.toFixed(2)} (com taxa de entrega).`,
     });
   }
 
-  // Status inicial depende da forma de pagamento
+  
   const initialStatus = paymentMethod === 'pix' ? 'Aguardando pagamento' : 'Em andamento';
 
-  // 6 — Cria pedido + itens + limpa carrinho em uma única transação (RPC)
+  
   const rpcItems = items.map(item => ({
     product_id: item.productId,
     name:       productMap[item.productId].name,

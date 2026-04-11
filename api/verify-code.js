@@ -5,7 +5,7 @@ const { checkIpRateLimit, extractIp } = require('./_rate-limit');
 const cors = require('./_cors');
 
 const MAX_ATTEMPTS   = 5;
-const VERIFY_RATE    = 10; // max 10 tentativas por IP por minuto
+const VERIFY_RATE    = 10; 
 
 const EMAIL_RE = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
 

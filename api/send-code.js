@@ -7,7 +7,6 @@ const { checkIpRateLimit, extractIp } = require('./_rate-limit');
 const { checkRateLimit } = require('./_rate-limit-db');
 const cors = require('./_cors');
 
-// Cliente separado para consultar schema auth (service role necessário)
 const supabaseAuth = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -16,12 +15,11 @@ const supabaseAuth = createClient(
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const CODE_TTL_SEC      = 60;        // 1 minuto
-const THROTTLE_MS       = 60 * 1000; // reenvio só após 1 minuto
-const SENDCODE_RATE     = 5;         // max 5 envios por IP por minuto
-const MIN_RESPONSE_MS   = 800;       // tempo mínimo de resposta — evita timing oracle
+const CODE_TTL_SEC      = 60;        
+const THROTTLE_MS       = 60 * 1000; 
+const SENDCODE_RATE     = 5;         
+const MIN_RESPONSE_MS   = 800;       
 
-// Regex RFC 5321 simplificado — rejeita formatos claramente inválidos
 const EMAIL_RE = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
 
 function generateCode() {

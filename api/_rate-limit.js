@@ -1,12 +1,6 @@
-/**
- * Rate limiting por IP — in-memory (best-effort em serverless).
- * Em ambientes serverless como Vercel cada instância tem seu próprio mapa,
- * então isto funciona como camada de defesa por instância quente.
- */
-
 const ipStore = new Map();
 
-const WINDOW_MS = 60 * 1000; // 1 minuto
+const WINDOW_MS = 60 * 1000; 
 
 function evict() {
   const now = Date.now();
@@ -15,11 +9,6 @@ function evict() {
   }
 }
 
-/**
- * @param {string} ip
- * @param {number} limit  – máximo de requisições por janela
- * @returns {{ allowed: boolean, retryAfterSec: number }}
- */
 function checkIpRateLimit(ip, limit) {
   evict();
   const now  = Date.now();
@@ -41,11 +30,6 @@ function checkIpRateLimit(ip, limit) {
   return { allowed: true, retryAfterSec: 0 };
 }
 
-/**
- * Extrai o IP real do cliente priorizando x-real-ip (setado pelo Vercel
- * antes que o cliente possa injetar) e caindo no primeiro valor de
- * x-forwarded-for, que no Vercel é o IP real na posição 0.
- */
 function extractIp(req) {
   const realIp = req.headers['x-real-ip'];
   if (realIp) return realIp.split(',')[0].trim();

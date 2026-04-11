@@ -1,9 +1,5 @@
 const ALLOWED_ORIGIN = 'https://24hrs-central.site';
 
-/**
- * Define os headers CORS e responde ao preflight OPTIONS.
- * Retorna true se a request já foi tratada (OPTIONS), false caso contrário.
- */
 function cors(req, res) {
   res.setHeader('Access-Control-Allow-Origin',  ALLOWED_ORIGIN);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');

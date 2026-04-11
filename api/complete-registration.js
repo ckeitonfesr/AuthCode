@@ -5,7 +5,7 @@ const { checkIpRateLimit, extractIp } = require('./_rate-limit');
 const cors = require('./_cors');
 
 function isValidCpf(digits) {
-  if (/^(\d)\1{10}$/.test(digits)) return false; // ex: 111.111.111-11
+  if (/^(\d)\1{10}$/.test(digits)) return false; 
   let sum = 0;
   for (let i = 0; i < 9; i++) sum += parseInt(digits[i]) * (10 - i);
   let rem = (sum * 10) % 11;
@@ -23,7 +23,7 @@ module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
   const ip = extractIp(req);
-  const rl = checkIpRateLimit(ip, 5); // max 5 cadastros por IP por minuto
+  const rl = checkIpRateLimit(ip, 5); 
   if (!rl.allowed) {
     return res.status(429).json({ error: `Muitas requisições. Tente novamente em ${rl.retryAfterSec}s.` });
   }
@@ -40,7 +40,7 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'Dados incompletos.' });
   }
 
-  // Validação de tipo e comprimento — rejeita payloads malformados
+  
   if (typeof email !== 'string' || email.length > 254) {
     return res.status(400).json({ error: 'Email invalido.' });
   }
@@ -51,9 +51,9 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'Telefone invalido.' });
   }
 
-  // Valida senha no backend (não confiar só no cliente)
-  // Mínimo 10 chars, máximo 128, deve ter maiúscula + minúscula + número
-  // Caracteres especiais são permitidos para maximizar entropia
+  
+  
+  
   if (
     typeof password !== 'string' ||
     password.length < 10 ||
@@ -67,7 +67,7 @@ module.exports = async function handler(req, res) {
 
   const normalizedEmail = email.trim().toLowerCase();
 
-  // CRÍTICO 2 — Verifica se OTP foi confirmado antes de criar conta
+  
   const { data: verified } = await supabase
     .from('otp_verified')
     .select('expires_at')
@@ -78,7 +78,7 @@ module.exports = async function handler(req, res) {
     return res.status(403).json({ error: 'OTP nao verificado.' });
   }
 
-  // Remove o registro OTP após usar (uso único)
+  
   await supabase.from('otp_verified').delete().eq('email', normalizedEmail);
 
   const { data: userData, error: createError } = await supabase.auth.admin.createUser({
@@ -88,7 +88,7 @@ module.exports = async function handler(req, res) {
   });
 
   if (createError) {
-    // CRÍTICO 1 — Se email já existe retorna 409, nunca atualiza senha
+    
     if (createError.message?.toLowerCase().includes('already registered')) {
       return res.status(409).json({ error: 'Email ja cadastrado. Faca login.' });
     }
@@ -99,16 +99,16 @@ module.exports = async function handler(req, res) {
   const u = userData.user;
   const firstName = fullName.trim().split(' ')[0];
 
-  // Gera username único com sufixo criptograficamente aleatório (6 hex chars = 16M+ combinações)
+  
   const randomSuffix = crypto.randomBytes(3).toString('hex');
   const username = `${firstName.toLowerCase()}_${randomSuffix}`;
 
-  // Valida CPF (dígitos verificadores) se fornecido
+  
   let validatedCpf = null;
   if (cpf) {
     const digits = cpf.replace(/\D/g, '');
     if (digits.length === 11 && isValidCpf(digits)) {
-      // Verifica unicidade do CPF antes de salvar
+      
       const { data: existing } = await supabase
         .from('profiles')
         .select('id')
