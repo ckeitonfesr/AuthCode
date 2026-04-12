@@ -2,10 +2,11 @@ const crypto  = require('crypto');
 const supabase = require('./_supabase');
 const { validateToken } = require('./_token');
 const { checkIpRateLimit, extractIp } = require('./_rate-limit');
+const { checkRateLimit } = require('./_rate-limit-db');
 const cors = require('./_cors');
 
 const MAX_ATTEMPTS   = 5;
-const VERIFY_RATE    = 10; 
+const VERIFY_RATE    = 10;
 
 const EMAIL_RE = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
 
@@ -20,7 +21,12 @@ module.exports = async function handler(req, res) {
   }
 
   const ip = extractIp(req);
-  const rl = checkIpRateLimit(ip, VERIFY_RATE);
+  // [H3] Dupla camada: DB (fail-closed) + in-memory
+  const [rlDb, rlMem] = await Promise.all([
+    checkRateLimit(`ip:${ip}:vc`, VERIFY_RATE, { failSafe: false }),
+    Promise.resolve(checkIpRateLimit(ip, VERIFY_RATE)),
+  ]);
+  const rl = rlDb.allowed ? rlMem : rlDb;
   if (!rl.allowed) {
     return res.status(429).json({
       error: `Muitas requisições. Tente novamente em ${rl.retryAfterSec}s.`,

@@ -1,8 +1,15 @@
 const { supabaseAdmin, requireUser } = require('./_auth');
 const cors = require('./_cors');
+const { checkIpRateLimit, extractIp } = require('./_rate-limit');
+const { checkRateLimit } = require('./_rate-limit-db');
+const { isUuid, bodySize } = require('./_validate');
 
-const MAX_QTY = 10;
+const MAX_QTY   = 10;
 const MAX_ITEMS = 20;
+const MAX_BODY  = 512; // bytes — cart body: productId(36) + quantity(2) + json overhead
+const IP_RATE        = 120;  // req/min por IP (anti-flood/scanner, memória apenas)
+const CART_RATE      = 120;  // req/min por usuário autenticado
+const CART_RATE_HOUR = 500;  // req/hora por usuário autenticado
 
 async function handleCart(req, res, user) {
   if (req.method === 'GET') {
@@ -21,8 +28,9 @@ async function handleCart(req, res, user) {
   }
 
   if (req.method === 'POST') {
+    if (bodySize(req) > MAX_BODY) return res.status(413).json({ error: 'Payload muito grande.' });
     const { productId, quantity = 1 } = req.body || {};
-    if (!productId) return res.status(400).json({ error: 'productId obrigatório.' });
+    if (!isUuid(productId)) return res.status(400).json({ error: 'productId inválido.' });
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QTY)
       return res.status(400).json({ error: 'Quantidade inválida.' });
     const { data: product } = await supabaseAdmin
@@ -38,8 +46,9 @@ async function handleCart(req, res, user) {
   }
 
   if (req.method === 'PATCH') {
+    if (bodySize(req) > MAX_BODY) return res.status(413).json({ error: 'Payload muito grande.' });
     const { productId, quantity } = req.body || {};
-    if (!productId) return res.status(400).json({ error: 'productId obrigatório.' });
+    if (!isUuid(productId)) return res.status(400).json({ error: 'productId inválido.' });
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QTY)
       return res.status(400).json({ error: 'Quantidade inválida.' });
     const { error } = await supabaseAdmin.from('cart_items').update({ quantity })
@@ -50,6 +59,7 @@ async function handleCart(req, res, user) {
 
   if (req.method === 'DELETE') {
     const { productId } = req.query;
+    if (productId && !isUuid(productId)) return res.status(400).json({ error: 'productId inválido.' });
     let query = supabaseAdmin.from('cart_items').delete().eq('user_id', user.id);
     if (productId) query = query.eq('product_id', productId);
     const { error } = await query;
@@ -69,8 +79,9 @@ async function handleFavorites(req, res, user) {
   }
 
   if (req.method === 'POST') {
+    if (bodySize(req) > MAX_BODY) return res.status(413).json({ error: 'Payload muito grande.' });
     const { productId } = req.body || {};
-    if (!productId) return res.status(400).json({ error: 'productId obrigatório.' });
+    if (!isUuid(productId)) return res.status(400).json({ error: 'productId inválido.' });
     const { error } = await supabaseAdmin
       .from('favorites').insert({ user_id: user.id, product_id: productId });
     if (error && error.code !== '23505') return res.status(500).json({ error: 'Erro ao adicionar favorito.' });
@@ -79,7 +90,7 @@ async function handleFavorites(req, res, user) {
 
   if (req.method === 'DELETE') {
     const { productId } = req.query;
-    if (!productId) return res.status(400).json({ error: 'productId obrigatório.' });
+    if (!isUuid(productId)) return res.status(400).json({ error: 'productId inválido.' });
     const { error } = await supabaseAdmin
       .from('favorites').delete().eq('user_id', user.id).eq('product_id', productId);
     if (error) return res.status(500).json({ error: 'Erro ao remover favorito.' });
@@ -91,8 +102,31 @@ async function handleFavorites(req, res, user) {
 
 module.exports = async function handler(req, res) {
   if (cors(req, res)) return;
+
+  // Rejeita bodies grandes antes de qualquer processamento
+  if (['POST', 'PATCH'].includes(req.method) && bodySize(req) > MAX_BODY)
+    return res.status(413).json({ error: 'Payload muito grande.' });
+
+  // 1) IP em memória: apenas anti-flood (não vai pro DB, não contamina entre usuários/testes)
+  const ip = extractIp(req);
+  const rlIp = checkIpRateLimit(ip, IP_RATE);
+  if (!rlIp.allowed) {
+    return res.status(429).json({ error: `Muitas requisições. Tente novamente em ${rlIp.retryAfterSec}s.` });
+  }
+
+  // 2) Auth: valida sessão
   const user = await requireUser(req, res);
   if (!user) return;
+
+  // 3) User: limite persistente por usuário no DB
+  const [rlUsrDb, rlUsrHour] = await Promise.all([
+    checkRateLimit(`user:${user.id}:cart`, CART_RATE),
+    checkRateLimit(`user:${user.id}:cart:h`, CART_RATE_HOUR, { windowMs: 3_600_000 }),
+  ]);
+  const rlUsr = !rlUsrDb.allowed ? rlUsrDb : rlUsrHour;
+  if (!rlUsr.allowed) {
+    return res.status(429).json({ error: `Muitas requisições. Tente novamente em ${rlUsr.retryAfterSec}s.` });
+  }
 
   const { r } = req.query;
   if (r === 'favorites') return handleFavorites(req, res, user);

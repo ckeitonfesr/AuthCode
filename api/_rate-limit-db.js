@@ -5,16 +5,24 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-const WINDOW_MS = 60 * 1000; 
+const WINDOW_MS = 60 * 1000;
 
-async function checkRateLimit(key, limit) {
-  const now      = Date.now();
-  const windowId = Math.floor(now / WINDOW_MS); 
-  const dbKey    = `${key}:${windowId}`;
-  const expiresAt = new Date(now + WINDOW_MS).toISOString();
+/**
+ * @param {string} key
+ * @param {number} limit
+ * @param {{ failSafe?: boolean }} opts
+ *   failSafe=true  (padrão) → se o DB falhar, libera a requisição
+ *   failSafe=false           → se o DB falhar, bloqueia a requisição
+ *                              Use em endpoints críticos (send-code, verify-code)
+ *                              para evitar brute force durante instabilidade do DB.
+ */
+async function checkRateLimit(key, limit, { failSafe = true, windowMs = WINDOW_MS } = {}) {
+  const now       = Date.now();
+  const windowId  = Math.floor(now / windowMs);
+  const dbKey     = `${key}:${windowId}`;
+  const expiresAt = new Date(now + windowMs).toISOString();
 
   try {
-    
     const { data, error } = await supabase.rpc('rate_limit_increment', {
       p_key:        dbKey,
       p_limit:      limit,
@@ -22,13 +30,15 @@ async function checkRateLimit(key, limit) {
     });
 
     if (error) {
-      
       console.error('[rate-limit-db] erro:', error.message);
-      return { allowed: true, retryAfterSec: 0 };
+      // [H3] fail-closed para endpoints críticos
+      return failSafe
+        ? { allowed: true,  retryAfterSec: 0  }
+        : { allowed: false, retryAfterSec: 60 };
     }
 
     if (!data.allowed) {
-      const resetAt = new Date(data.expires_at).getTime();
+      const resetAt       = new Date(data.expires_at).getTime();
       const retryAfterSec = Math.max(1, Math.ceil((resetAt - now) / 1000));
       return { allowed: false, retryAfterSec };
     }
@@ -36,7 +46,9 @@ async function checkRateLimit(key, limit) {
     return { allowed: true, retryAfterSec: 0 };
   } catch (err) {
     console.error('[rate-limit-db] exceção:', err.message);
-    return { allowed: true, retryAfterSec: 0 }; 
+    return failSafe
+      ? { allowed: true,  retryAfterSec: 0  }
+      : { allowed: false, retryAfterSec: 60 };
   }
 }
 

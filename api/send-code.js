@@ -21,6 +21,11 @@ const SENDCODE_RATE     = 5;
 const MIN_RESPONSE_MS   = 800;       
 
 const EMAIL_RE = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+const ALLOWED_DOMAINS = new Set(['gmail.com','googlemail.com','outlook.com','outlook.com.br','hotmail.com','hotmail.com.br','live.com','live.com.br','msn.com']);
+
+function logEvent(event_type, severity, ip, device_id, details = {}) {
+  supabase.from('security_events').insert({ event_type, severity, ip, device_id: device_id || null, path: '/api/sc', details }).then(() => {});
+}
 
 function generateCode() {
   return String(crypto.randomInt(100000, 1000000));
@@ -47,11 +52,12 @@ module.exports = async function handler(req, res) {
 
   // Rate limiting centralizado (Supabase) + in-memory como camada extra
   const [rlDb, rlMem] = await Promise.all([
-    checkRateLimit(`ip:${ip}:sc`, SENDCODE_RATE),
+    checkRateLimit(`ip:${ip}:sc`, SENDCODE_RATE, { failSafe: false }), // [H3] fail-closed
     Promise.resolve(checkIpRateLimit(ip, SENDCODE_RATE)),
   ]);
   const rl = rlDb.allowed ? rlMem : rlDb;
   if (!rl.allowed) {
+    logEvent('rate_limit_hit', 'warning', ip, req.headers['x-device-id'], { retryAfterSec: rl.retryAfterSec });
     return res.status(429).json({
       error: `Muitas requisições. Tente novamente em ${rl.retryAfterSec}s.`,
     });
@@ -72,6 +78,12 @@ module.exports = async function handler(req, res) {
   }
 
   const normalizedEmail = email.trim().toLowerCase();
+  const domain = normalizedEmail.split('@')[1] || '';
+  if (!ALLOWED_DOMAINS.has(domain)) {
+    logEvent('blocked_email_domain', 'warning', ip, deviceId, { domain });
+    await minDelay(start);
+    return res.status(400).json({ error: 'Apenas e-mails Gmail ou Microsoft são aceitos.' });
+  }
 
   // Bloqueia email já cadastrado — retorna 200 (anti-enumeração)
   const { data: authUser } = await supabaseAuth

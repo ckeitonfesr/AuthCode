@@ -3,7 +3,10 @@ const supabase          = require('./_supabase');
 const { validateToken } = require('./_token');
 const { checkIpRateLimit, extractIp } = require('./_rate-limit');
 const { checkRateLimit } = require('./_rate-limit-db');
+const { isUuid, bodySize } = require('./_validate');
 const cors = require('./_cors');
+
+const MAX_BODY_ORDER = 8192; // 8KB — 20 items × ~50 bytes + address 500 + overhead
 
 const ORDER_RATE_LIMIT      = 5; 
 const ORDER_RATE_LIMIT_USER = 2; 
@@ -18,6 +21,7 @@ const supabaseAdmin = createClient(
 module.exports = async function handler(req, res) {
   if (cors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).end();
+  if (bodySize(req) > MAX_BODY_ORDER) return res.status(413).json({ error: 'Payload muito grande.' });
 
   const ip = extractIp(req);
 
@@ -88,16 +92,20 @@ module.exports = async function handler(req, res) {
 
   
   for (const item of items) {
-    if (!item.productId || typeof item.productId !== 'string') {
-      return res.status(400).json({ error: 'Item inválido: productId ausente.' });
+    if (!isUuid(item.productId)) {
+      return res.status(400).json({ error: 'Item inválido: productId inválido.' });
     }
     if (!Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 10) {
       return res.status(400).json({ error: 'Quantidade inválida (1–10 por produto).' });
     }
   }
 
-  
+  // [L1] Rejeita productIds duplicados no array — impede bypass do limite
+  // de 10 unidades por produto enviando o mesmo item duas vezes.
   const productIds = [...new Set(items.map(i => i.productId))];
+  if (productIds.length !== items.length) {
+    return res.status(400).json({ error: 'Produtos duplicados no pedido.' });
+  }
 
   const { data: products, error: productsErr } = await supabase
     .from('products')
