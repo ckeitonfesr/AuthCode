@@ -1,10 +1,31 @@
 const supabase = require('./_supabase');
 const GEMINI_API_URL =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+const KEYBOARD_SMASH = /^(qwerty|asdfgh?|zxcvbn?|qazwsx|hjkl|poiuy|mnbvc|lkjhg|trewq|ytrewq|xksjdhf|lqpzmwn)/i;
+const REPEATED_CHARS = /^(.)\1{2,}$/i;
+const OFFENSIVE      = /\b(penis|vagina|porno|sexo|merda|caralho|buceta|puta|viado|krl|fdp)\b/i;
+function preCheck(fields) {
+  const name = (fields.fullName || '').trim();
+  const words = name.split(/\s+/);
+  for (const w of words) {
+    if (REPEATED_CHARS.test(w))   return { verdict: 'garbage', confidence: 99, signals: ['repeated_chars_name'], reasoning: `Nome contém sequência de caracteres repetidos: "${w}"` };
+    if (KEYBOARD_SMASH.test(w))   return { verdict: 'garbage', confidence: 99, signals: ['keyboard_smash_name'], reasoning: `Nome parece keyboard smash: "${w}"` };
+    if (OFFENSIVE.test(w))        return { verdict: 'garbage', confidence: 99, signals: ['offensive_name'],      reasoning: `Nome contém palavra ofensiva: "${w}"` };
+  }
+  return null;
+}
 async function analyzeData(payload) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) { console.error('[ai-analyze] GEMINI_API_KEY não configurado'); return; }
   const { userId, trigger, fields } = payload;
+  const quick = preCheck(fields);
+  if (quick) {
+    const { error: insertErr } = await supabase.from('ai_flags').insert({
+      user_id: userId, trigger, fields, ...quick,
+    });
+    if (insertErr) console.error('[ai-analyze] DB insert error (precheck):', insertErr.message);
+    return;
+  }
   const fieldLines = Object.entries(fields)
     .filter(([, v]) => v !== undefined && v !== null && v !== '')
     .map(([k, v]) => `  ${k}: "${v}"`)
