@@ -22,13 +22,13 @@ Respond ONLY in valid JSON (no markdown, no backticks) with this exact shape:
   "reasoning": "short explanation in Portuguese"
 }
 Rules:
-- "garbage": clearly fake/random (e.g. "aaaaaa", "1234567890", keyboard smash like "asdfgh")
-- "suspicious": unusual but possibly real (e.g. very short name, odd phone pattern)
-- "clean": looks like real user data
-- For Brazilian phones: valid if 11 digits starting with DDD + 9
-- For CPF: check obvious patterns (all same digit, sequential)
-- For names: real names have normal first+last structure, not random chars
-- Be conservative — lean "suspicious" over "garbage" when uncertain`;
+- "garbage": clearly fake/random — keyboard smash (asdfgh, zxcvbn, qwerty, xksjdhf), repeated chars (aaaa), sequential numbers, nonsense strings, any name that is obviously not a real human name
+- "suspicious": unusual but could be real — very short name (1 word), odd phone pattern, nickname-style name
+- "clean": looks like a real Brazilian person's name and valid contact info
+- For names: if EITHER first or last name looks like keyboard smash or random chars → "garbage"
+- For Brazilian phones: valid if 11 digits starting with DDD (11-99) + 9
+- For CPF: garbage if all same digit or sequential (111.111.111-11, 123.456.789-09)
+- Do NOT be conservative with names — if it looks like keyboard smash, mark as "garbage"`;
   let verdict = 'clean';
   let confidence = 50;
   let signals = [];
