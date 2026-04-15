@@ -114,7 +114,7 @@ module.exports = async function handler(req, res) {
     phone,
     cpf: validatedCpf,
   });
-  analyzeData({
+  await analyzeData({
     userId: u.id,
     trigger: 'registration',
     fields: {
