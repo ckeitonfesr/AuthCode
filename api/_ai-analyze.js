@@ -3,7 +3,7 @@ const GEMINI_API_URL =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 async function analyzeData(payload) {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return; 
+  if (!apiKey) { console.error('[ai-analyze] GEMINI_API_KEY não configurado'); return; }
   const { userId, trigger, fields } = payload;
   const fieldLines = Object.entries(fields)
     .filter(([, v]) => v !== undefined && v !== null && v !== '')
@@ -52,8 +52,9 @@ Rules:
     const data = await res.json();
     const parts = data?.candidates?.[0]?.content?.parts ?? [];
     const text = parts.find(p => p.text && !p.thought)?.text;
-    if (!text) return;
+    if (!text) { console.error('[ai-analyze] nenhum texto na resposta do Gemini, parts:', JSON.stringify(parts).slice(0,300)); return; }
     const raw = text.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim();
+    console.log('[ai-analyze] raw response:', raw.slice(0, 300));
     const parsed = JSON.parse(raw);
     verdict    = parsed.verdict    ?? 'clean';
     confidence = parsed.confidence ?? 50;
@@ -63,6 +64,7 @@ Rules:
     console.error('[ai-analyze] parse/fetch error:', err.message);
     return;
   }
+  console.log(`[ai-analyze] resultado: verdict=${verdict} confidence=${confidence}`);
   if (verdict === 'clean' && confidence >= 70) return;
   try {
     await supabase.from('ai_flags').insert({
