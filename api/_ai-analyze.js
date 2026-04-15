@@ -56,9 +56,8 @@ Rules:
     const data = await res.json();
     const parts = data?.candidates?.[0]?.content?.parts ?? [];
     const text = parts.find(p => p.text && !p.thought)?.text;
-    if (!text) { console.error('[ai-analyze] nenhum texto na resposta do Gemini, parts:', JSON.stringify(parts).slice(0,300)); return; }
+    if (!text) return;
     const raw = text.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim();
-    console.log('[ai-analyze] raw response:', raw.slice(0, 300));
     const parsed = JSON.parse(raw);
     verdict    = parsed.verdict    ?? 'clean';
     confidence = parsed.confidence ?? 50;
@@ -68,7 +67,6 @@ Rules:
     console.error('[ai-analyze] parse/fetch error:', err.message);
     return;
   }
-  console.log(`[ai-analyze] resultado: verdict=${verdict} confidence=${confidence}`);
   if (verdict === 'clean' && confidence >= 70) return;
   const { error: insertErr } = await supabase.from('ai_flags').insert({
     user_id:    userId,
@@ -81,8 +79,6 @@ Rules:
   });
   if (insertErr) {
     console.error('[ai-analyze] DB insert error:', insertErr.message);
-  } else {
-    console.log('[ai-analyze] flag inserido com sucesso');
   }
 }
 module.exports = { analyzeData };
