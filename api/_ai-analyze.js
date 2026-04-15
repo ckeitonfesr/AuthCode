@@ -42,14 +42,15 @@ Rules:
         generationConfig: {
           temperature: 0.1,
           maxOutputTokens: 800,
-        },
-        thinkingConfig: {
-          thinkingBudget: 0,
+          thinkingConfig: {
+            thinkingBudget: 0,
+          },
         },
       }),
     });
     if (!res.ok) {
-      console.error('[ai-analyze] Gemini API error:', res.status);
+      const errBody = await res.text();
+      console.error('[ai-analyze] Gemini API error:', res.status, errBody.slice(0, 300));
       return;
     }
     const data = await res.json();
