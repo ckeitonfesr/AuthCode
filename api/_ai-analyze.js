@@ -43,6 +43,9 @@ Rules:
           temperature: 0.1,
           maxOutputTokens: 800,
         },
+        thinkingConfig: {
+          thinkingBudget: 0,
+        },
       }),
     });
     if (!res.ok) {
