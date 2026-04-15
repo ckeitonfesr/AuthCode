@@ -70,18 +70,19 @@ Rules:
   }
   console.log(`[ai-analyze] resultado: verdict=${verdict} confidence=${confidence}`);
   if (verdict === 'clean' && confidence >= 70) return;
-  try {
-    await supabase.from('ai_flags').insert({
-      user_id:    userId,
-      trigger,
-      fields:     fields,
-      verdict,
-      confidence,
-      signals,
-      reasoning,
-    });
-  } catch (err) {
-    console.error('[ai-analyze] DB insert error:', err.message);
+  const { error: insertErr } = await supabase.from('ai_flags').insert({
+    user_id:    userId,
+    trigger,
+    fields:     fields,
+    verdict,
+    confidence,
+    signals,
+    reasoning,
+  });
+  if (insertErr) {
+    console.error('[ai-analyze] DB insert error:', insertErr.message);
+  } else {
+    console.log('[ai-analyze] flag inserido com sucesso');
   }
 }
 module.exports = { analyzeData };
