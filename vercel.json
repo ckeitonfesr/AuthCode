@@ -5,7 +5,31 @@
     "api/svc/[...path].js": { "maxDuration": 15 }
   },
   "rewrites": [
-    { "source": "/api/svc/:path*", "destination": "/api/svc/[...path]" }
+    { "source": "/api/svc/:path*", "destination": "/api/svc/[...path]" },
+    { "source": "/.env",            "destination": "/api/catalog?_hp=1&_p=.env" },
+    { "source": "/.env.local",      "destination": "/api/catalog?_hp=1&_p=.env.local" },
+    { "source": "/.env.production", "destination": "/api/catalog?_hp=1&_p=.env.production" },
+    { "source": "/.git/config",     "destination": "/api/catalog?_hp=1&_p=.git/config" },
+    { "source": "/wp-login.php",    "destination": "/api/catalog?_hp=1&_p=wp-login.php" },
+    { "source": "/wp-admin",        "destination": "/api/catalog?_hp=1&_p=wp-admin" },
+    { "source": "/wp-admin/:path*", "destination": "/api/catalog?_hp=1&_p=wp-admin" },
+    { "source": "/phpMyAdmin",      "destination": "/api/catalog?_hp=1&_p=phpMyAdmin" },
+    { "source": "/phpmyadmin",      "destination": "/api/catalog?_hp=1&_p=phpmyadmin" },
+    { "source": "/admin.php",       "destination": "/api/catalog?_hp=1&_p=admin.php" },
+    { "source": "/config.php",      "destination": "/api/catalog?_hp=1&_p=config.php" },
+    { "source": "/api/admin",       "destination": "/api/catalog?_hp=1&_p=api/admin" },
+    { "source": "/api/v1/:path*",   "destination": "/api/catalog?_hp=1&_p=api/v1" },
+    { "source": "/api/config",      "destination": "/api/catalog?_hp=1&_p=api/config" },
+    { "source": "/api/debug",       "destination": "/api/catalog?_hp=1&_p=api/debug" },
+    { "source": "/api/backup",      "destination": "/api/catalog?_hp=1&_p=api/backup" },
+    { "source": "/api/env",         "destination": "/api/catalog?_hp=1&_p=api/env" },
+    { "source": "/api/test",        "destination": "/api/catalog?_hp=1&_p=api/test" },
+    { "source": "/api/setup",       "destination": "/api/catalog?_hp=1&_p=api/setup" },
+    { "source": "/api/install",     "destination": "/api/catalog?_hp=1&_p=api/install" },
+    { "source": "/shell",           "destination": "/api/catalog?_hp=1&_p=shell" },
+    { "source": "/shell.php",       "destination": "/api/catalog?_hp=1&_p=shell.php" },
+    { "source": "/cmd.php",         "destination": "/api/catalog?_hp=1&_p=cmd.php" },
+    { "source": "/xmlrpc.php",      "destination": "/api/catalog?_hp=1&_p=xmlrpc.php" }
   ],
   "headers": [
     {

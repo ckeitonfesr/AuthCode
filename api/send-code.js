@@ -6,109 +6,84 @@ const { validateToken } = require('./_token');
 const { checkIpRateLimit, extractIp } = require('./_rate-limit');
 const { checkRateLimit } = require('./_rate-limit-db');
 const cors = require('./_cors');
-
+const { isValidEmail, isAllowedDomain } = require('./_email-utils');
 const supabaseAuth = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY,
   { db: { schema: 'auth' } }
 );
-
 const resend = new Resend(process.env.RESEND_API_KEY);
-
 const CODE_TTL_SEC      = 60;        
 const THROTTLE_MS       = 60 * 1000; 
-const SENDCODE_RATE     = 5;         
+const SENDCODE_RATE        = 5;
+const SENDCODE_RATE_GLOBAL = 60;
 const MIN_RESPONSE_MS   = 800;       
-
-const EMAIL_RE = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
-const ALLOWED_DOMAINS = new Set(['gmail.com','googlemail.com','outlook.com','outlook.com.br','hotmail.com','hotmail.com.br','live.com','live.com.br','msn.com']);
-
 function logEvent(event_type, severity, ip, device_id, details = {}) {
-  supabase.from('security_events').insert({ event_type, severity, ip, device_id: device_id || null, path: '/api/sc', details }).then(() => {});
+  supabase.from('security_events').insert({ event_type, severity, ip, device_id: device_id || null, path: '/api/sc', details }).then(() => {}).catch(err => console.error('[send-code] logEvent error:', err));
 }
-
 function generateCode() {
   return String(crypto.randomInt(100000, 1000000));
 }
-
 function hashCode(code) {
   return crypto.createHash('sha256').update(code).digest('hex');
 }
-
-// Garante tempo mínimo de resposta para equalizar timing entre caminhos distintos
 async function minDelay(startMs) {
   const remaining = MIN_RESPONSE_MS - (Date.now() - startMs);
   if (remaining > 0) await new Promise(r => setTimeout(r, remaining));
 }
-
 module.exports = async function handler(req, res) {
   if (cors(req, res)) return;
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
-
   const start = Date.now();
   const ip = extractIp(req);
-
-  // Rate limiting centralizado (Supabase) + in-memory como camada extra
-  const [rlDb, rlMem] = await Promise.all([
-    checkRateLimit(`ip:${ip}:sc`, SENDCODE_RATE, { failSafe: false }), // [H3] fail-closed
+  const deviceId = req.headers['x-device-id'];
+  const [rlDb, rlMem, rlGlobal] = await Promise.all([
+    checkRateLimit(`ip:${ip}:sc`,  SENDCODE_RATE, { failSafe: false }),
     Promise.resolve(checkIpRateLimit(ip, SENDCODE_RATE)),
+    checkRateLimit(`global:sc`,    SENDCODE_RATE_GLOBAL),
   ]);
-  const rl = rlDb.allowed ? rlMem : rlDb;
-  if (!rl.allowed) {
-    logEvent('rate_limit_hit', 'warning', ip, req.headers['x-device-id'], { retryAfterSec: rl.retryAfterSec });
+  const rl = !rlDb.allowed ? rlDb : !rlMem.allowed ? rlMem : !rlGlobal.allowed ? rlGlobal : null;
+  if (rl) {
+    logEvent('rate_limit_hit', 'warning', ip, deviceId, { retryAfterSec: rl.retryAfterSec });
     return res.status(429).json({
       error: `Muitas requisições. Tente novamente em ${rl.retryAfterSec}s.`,
     });
   }
-
-  const token    = req.headers['x-request-token'];
-  const deviceId = req.headers['x-device-id'];
-
+  const token   = req.headers['x-request-token'];
   const isValid = await validateToken(token, deviceId, req);
   if (!isValid) {
     return res.status(401).json({ error: 'Token invalido ou expirado.' });
   }
-
   const { email } = req.body ?? {};
-
-  if (!email || typeof email !== 'string' || !EMAIL_RE.test(email) || email.length > 254) {
+  if (!isValidEmail(email)) {
     return res.status(400).json({ error: 'Email inválido.' });
   }
-
   const normalizedEmail = email.trim().toLowerCase();
-  const domain = normalizedEmail.split('@')[1] || '';
-  if (!ALLOWED_DOMAINS.has(domain)) {
-    logEvent('blocked_email_domain', 'warning', ip, deviceId, { domain });
+  if (!isAllowedDomain(normalizedEmail)) {
+    logEvent('blocked_email_domain', 'warning', ip, deviceId, { domain: normalizedEmail.split('@')[1] || '' });
     await minDelay(start);
     return res.status(400).json({ error: 'Apenas e-mails Gmail ou Microsoft são aceitos.' });
   }
-
-  // Bloqueia email já cadastrado — retorna 200 (anti-enumeração)
   const { data: authUser } = await supabaseAuth
     .from('users')
     .select('id')
     .eq('email', normalizedEmail)
     .maybeSingle();
-
   if (authUser) {
     await minDelay(start);
     return res.status(200).json({ success: true, message: 'Codigo enviado para o email.' });
   }
-
-  // Throttle por email
   const { data: existing, error: fetchError } = await supabase
     .from('auth_codes')
     .select('created_at')
     .eq('email', normalizedEmail)
     .single();
-
   if (fetchError && fetchError.code !== 'PGRST116') {
     console.error('[send-code] Erro ao consultar Supabase:', fetchError);
     return res.status(500).json({ error: 'Erro interno. Tente novamente.' });
   }
-
   if (existing) {
     const elapsed = Date.now() - new Date(existing.created_at).getTime();
     if (elapsed < THROTTLE_MS) {
@@ -118,11 +93,9 @@ module.exports = async function handler(req, res) {
       });
     }
   }
-
   const code      = generateCode();
-  const codeHash  = hashCode(code);           // armazena hash, nunca o código em plaintext
+  const codeHash  = hashCode(code);           
   const expiresAt = new Date(Date.now() + CODE_TTL_SEC * 1000).toISOString();
-
   const { error: upsertError } = await supabase
     .from('auth_codes')
     .upsert({
@@ -132,12 +105,10 @@ module.exports = async function handler(req, res) {
       attempts:   0,
       created_at: new Date().toISOString(),
     });
-
   if (upsertError) {
     console.error('[send-code] Erro ao salvar código:', upsertError);
     return res.status(500).json({ error: 'Erro interno. Tente novamente.' });
   }
-
   try {
     await resend.emails.send({
       from:    '24h Central <noreply@24hrs-central.site>',
@@ -177,7 +148,6 @@ module.exports = async function handler(req, res) {
     console.error('[send-code] Erro ao enviar email:', err);
     return res.status(500).json({ error: 'Falha ao enviar o email. Tente novamente.' });
   }
-
   await minDelay(start);
   return res.status(200).json({ success: true, message: 'Código enviado para o email.' });
 };
