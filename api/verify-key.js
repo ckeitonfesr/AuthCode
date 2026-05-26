@@ -6,7 +6,7 @@ const { checkRateLimit } = require('./_rate-limit-db');
 const cors = require('./_cors');
 
 const VERIFY_RATE = 10;
-const SECRET_KEY = "SUPER_SECRET_GREED_2026_KEY";
+const SECRET_KEY = process.env.VERIFY_SECRET_KEY;
 
 module.exports = async function handler(req, res) {
   if (cors(req, res)) return;
