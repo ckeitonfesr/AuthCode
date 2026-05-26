@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const supabase = require('./_supabase');
 const { validateToken } = require('./_token');
 const { checkIpRateLimit, extractIp } = require('./_rate-limit');
@@ -5,12 +6,12 @@ const { checkRateLimit } = require('./_rate-limit-db');
 const cors = require('./_cors');
 
 const VERIFY_RATE = 10;
+const SECRET_KEY = "SUPER_SECRET_GREED_2026_KEY";
 
 module.exports = async function handler(req, res) {
-  // CORS do seu projeto
   if (cors(req, res)) return;
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ error: 'E00' });
   }
 
   const ip = extractIp(req);
@@ -20,37 +21,39 @@ module.exports = async function handler(req, res) {
   ]);
   const rl = rlDb.allowed ? rlMem : rlDb;
   if (!rl.allowed) {
-    return res.status(429).json({
-      error: `Muitas requisições. Tente novamente em ${rl.retryAfterSec}s.`,
-    });
+    return res.status(429).json({ error: 'E01' });
   }
 
-  // Validação do Token e Device ID do AuthCode
   const token = req.headers['x-request-token'];
   const deviceId = req.headers['x-device-id'];
-  
+
   if (token) {
-    // Se quiser validar o token, pode descomentar a linha abaixo. 
-    // Como a checagem é silenciosa pelo app Android, o app terá que fazer 
-    // o request-token primeiro para obter esse token.
     const isValid = await validateToken(token, deviceId, req);
     if (!isValid) {
-      return res.status(401).json({ error: 'Token invalido ou expirado.' });
+      return res.status(401).json({ error: 'E02' });
     }
   }
 
-  const { key, hwid } = req.body ?? {};
+  const { key, hwid, nonce } = req.body ?? {};
 
   if (!key || typeof key !== 'string') {
-    return res.status(400).json({ error: 'Faltando key' });
-  }
-  
-  if (!hwid || typeof hwid !== 'string') {
-    return res.status(400).json({ error: 'Faltando hwid do dispositivo' });
+    return res.status(400).json({ error: 'E03' });
   }
 
+  if (!hwid || typeof hwid !== 'string') {
+    return res.status(400).json({ error: 'E04' });
+  }
+
+  if (!nonce || typeof nonce !== 'string') {
+    return res.status(400).json({ error: 'E05' });
+  }
+
+  // Gera o auth_hash com HMAC-SHA256 usando nonce + hwid
+  const auth_hash = crypto.createHmac('sha256', SECRET_KEY)
+                          .update(nonce + hwid)
+                          .digest('hex');
+
   try {
-    // Busca a key
     const { data: keyData, error: fetchError } = await supabase
       .from('cheat_keys')
       .select('*')
@@ -58,12 +61,12 @@ module.exports = async function handler(req, res) {
       .single();
 
     if (fetchError || !keyData) {
-      return res.status(401).json({ error: 'Key Invalida' });
+      return res.status(401).json({ error: 'E06' });
     }
 
     const now = new Date();
 
-    // Primeiro login da key
+    // Primeiro login: ativa a key
     if (!keyData.first_login) {
       const expiresAt = new Date();
       expiresAt.setDate(now.getDate() + keyData.days);
@@ -78,34 +81,33 @@ module.exports = async function handler(req, res) {
         .eq('id', keyData.id);
 
       if (updateError) {
-        return res.status(500).json({ error: 'Erro ao ativar a key' });
+        return res.status(500).json({ error: 'E07' });
       }
 
       return res.status(200).json({
         success: true,
-        message: 'Key ativada',
         expires_at: expiresAt.toISOString(),
+        auth_hash: auth_hash,
       });
     }
 
-    // Se já ativou, checa expiração
+    // Checa expiração
     const expirationDate = new Date(keyData.expires_at);
     if (now > expirationDate) {
-      return res.status(403).json({ error: 'Key expirada' });
+      return res.status(403).json({ error: 'E08' });
     }
 
-    // Checa o HWID (se tentou usar em outro aparelho)
+    // Checa HWID
     if (keyData.hwid !== hwid) {
-      return res.status(403).json({ error: 'HWID Invalido (Dispositivo diferente)' });
+      return res.status(403).json({ error: 'E09' });
     }
 
     return res.status(200).json({
       success: true,
-      message: 'Login OK',
       expires_at: keyData.expires_at,
+      auth_hash: auth_hash,
     });
   } catch (err) {
-    console.error('[verify-key] Erro interno:', err);
-    return res.status(500).json({ error: 'Erro no servidor' });
+    return res.status(500).json({ error: 'E10' });
   }
 };
